@@ -1,0 +1,52 @@
+{
+    "app": {
+        "title": "Finance Manager",
+        "description": "A smart, user-friendly tool to track expenses, manage budgets, and optimize finances. Get real-time insights, set goals, and control your money effortlessly: anytime, anywhere.",
+        "version": "1.0.0",
+        "api_prefix": "/v1",
+        "openapi_url": "/openapi.json",
+        "docs_url": "/docs",
+        "redoc_url": "/redoc",
+        "license_info": {
+            "name": "MIT License",
+            "url": "https://opensource.org/license/MIT/"
+        }
+    },
+    "server": {
+        "host": "127.0.0.1",
+        "port": 8000,
+        "reload": false,
+        "reload_dirs": null,
+        "reload_includes": null,
+        "reload_excludes": null,
+        "reload_delay": 0.5,
+        "workers": null,
+        "proxy_headers": true,
+        "server_header": false,
+        "date_header": true,
+        "limit_concurrency": null,
+        "backlog": 2048,
+        "limit_max_requests": null,
+        "timeout_keep_alive": 5,
+        "timeout_graceful_shutdown": 15
+    },
+    "logging": {
+        "console": {
+            "enabled": true,
+            "app_level": "DEBUG",
+            "server_level": "DEBUG",
+            "use_colors": true,
+            "use_json": false
+        },
+        "file": {
+            "enabled": true,
+            "app_level": "DEBUG",
+            "server_level": "DEBUG",
+            "path": "logs/app.log",
+            "rotate": true,
+            "max_bytes": 1048576,
+            "backup_count": 5
+        },
+        "log_unhandled_exceptions": true
+    }
+}
