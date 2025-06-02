@@ -1,7 +1,7 @@
 {
     "app": {
         "title": "Finance Manager",
-        "description": "A smart, user-friendly tool to track expenses, manage budgets, and optimize finances. Get real-time insights, set goals, and control your money effortlessly: anytime, anywhere.",
+        "description": "The backend system of a financial manager.",
         "version": "1.0.0",
         "api_prefix": "/v1",
         "openapi_url": "/openapi.json",
