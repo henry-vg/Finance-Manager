@@ -14,3 +14,7 @@ pip install -r requirements.txt
 echo "Insert .env content here" > .env
 python3 main.py
 ```
+
+## TODOs
+
+- Fazer teste end-to-end (no diretório tests/e2e/)
