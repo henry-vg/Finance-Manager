@@ -23,7 +23,7 @@ python3 main.py
 
 ### Collection `Users`
 
-```json
+```jsonc
 {
     "_id": "ObjectId",
     "email": "String",
@@ -39,7 +39,7 @@ python3 main.py
 
 ### Collection `Banks`
 
-```json
+```jsonc
 {
     "_id": "ObjectId",
     "user_id": "ObjectId",
@@ -53,7 +53,7 @@ python3 main.py
 
 ### Collection `Cards`
 
-```json
+```jsonc
 {
     "_id": "ObjectId",
     "bank_id": "ObjectId",
@@ -69,7 +69,7 @@ python3 main.py
 
 ### Collection `Transactions`
 
-```json
+```jsonc
 {
     "_id": "ObjectId",
     "user_id": "ObjectId",
@@ -88,7 +88,7 @@ python3 main.py
 
 ### Collection `Categories`
 
-```json
+```jsonc
 {
     "_id": "ObjectId",
     "user_id": "ObjectId",
