@@ -1,35 +1,13 @@
-import logging
+from src.infra.server import create_app
 
-from app.core.exception_handlers import register_exception_handlers
-from app.core.logging import setup_logging
-from app.core.settings import settings
-from app.routers import api_router
-from fastapi import FastAPI
-
-setup_logging()
-
-logger = logging.getLogger("main")
-
-logger.info("Starting application...")
-
-app = FastAPI(
-    title=settings.app.title,
-    description=settings.app.description,
-    version=settings.app.version,
-    docs_url=settings.app.docs_url,
-    redoc_url=settings.app.redoc_url,
-    openapi_url=settings.app.openapi_url,
-    license_info=settings.app.license_info,
-)
-
-app.include_router(api_router)
-register_exception_handlers(app)
+app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+    from src.infra.settings import settings
 
     uvicorn.run(
-        "main:app",
+        "src.infra.server:create_app",
         host=settings.server.host,
         port=settings.server.port,
         reload=settings.server.reload,
@@ -47,4 +25,5 @@ if __name__ == "__main__":
         limit_max_requests=settings.server.limit_max_requests,
         timeout_keep_alive=settings.server.timeout_keep_alive,
         timeout_graceful_shutdown=settings.server.timeout_graceful_shutdown,
+        factory=True,
     )

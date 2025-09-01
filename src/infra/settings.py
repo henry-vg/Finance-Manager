@@ -64,7 +64,6 @@ class _AppSettings(BaseSettings):
     title: str = "Application"
     description: str = ""
     version: str = "0.1.0"
-    api_prefix: str = "/v1"
     openapi_url: str = "/openapi.json"
     docs_url: str = "/docs"
     redoc_url: str = "/redoc"

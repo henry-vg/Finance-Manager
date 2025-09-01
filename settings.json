@@ -3,7 +3,6 @@
         "title": "Finance Manager",
         "description": "The backend system of a financial manager.",
         "version": "1.0.0",
-        "api_prefix": "/v1",
         "openapi_url": "/openapi.json",
         "docs_url": "/docs",
         "redoc_url": "/redoc",

@@ -3,7 +3,7 @@ import sys
 
 from logging.config import dictConfig
 from pathlib import Path
-from app.core.settings import settings
+from src.infra.settings import settings
 
 
 def setup_logging():
