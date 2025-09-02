@@ -41,7 +41,7 @@
             "enabled": true,
             "app_level": "DEBUG",
             "server_level": "DEBUG",
-            "path": "logs/app.log",
+            "path": "logs/finance-manager.log",
             "rotate": true,
             "max_bytes": 1048576,
             "backup_count": 5
