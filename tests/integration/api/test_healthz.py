@@ -1,5 +1,6 @@
 import httpx
 import pytest
+from fastapi import FastAPI
 
 from src.core.domain.healthz import HealthzStatus
 from src.core.ports.output.database_health_output_port import DatabaseHealthOutputPort
@@ -13,8 +14,23 @@ class _UnhealthyDatabaseHealthOutputPortStub(DatabaseHealthOutputPort):
         return HealthzStatus.NOT_OK
 
 
+class _HealthyDatabaseHealthOutputPortStub(DatabaseHealthOutputPort):
+    async def get_database_status(self) -> HealthzStatus:
+        return HealthzStatus.OK
+
+
+def _create_test_app(
+    database_health_output_port: DatabaseHealthOutputPort,
+) -> FastAPI:
+    return create_http_app(
+        settings=load_settings(),
+        healthz_input_port=HealthzUseCase(database_health_output_port),
+    )
+
+
 @pytest.mark.anyio
-async def test_healthz_liveness_returns_ok(app):
+async def test_healthz_liveness_returns_ok():
+    app = _create_test_app(_HealthyDatabaseHealthOutputPortStub())
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -25,7 +41,8 @@ async def test_healthz_liveness_returns_ok(app):
 
 
 @pytest.mark.anyio
-async def test_healthz_readiness_returns_ok(app):
+async def test_healthz_readiness_returns_ok():
+    app = _create_test_app(_HealthyDatabaseHealthOutputPortStub())
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -40,13 +57,7 @@ async def test_healthz_readiness_returns_ok(app):
 
 @pytest.mark.anyio
 async def test_healthz_readiness_returns_not_ok_when_database_is_unavailable():
-    unhealthy_database_health_output_port_stub = (
-        _UnhealthyDatabaseHealthOutputPortStub()
-    )
-    app = create_http_app(
-        settings=load_settings(),
-        healthz_input_port=HealthzUseCase(unhealthy_database_health_output_port_stub),
-    )
+    app = _create_test_app(_UnhealthyDatabaseHealthOutputPortStub())
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

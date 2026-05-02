@@ -40,7 +40,8 @@ def _create_test_app() -> FastAPI:
 
 
 @pytest.mark.anyio
-async def test_docs_endpoint_is_customized_and_returns_html(app):
+async def test_docs_endpoint_is_customized_and_returns_html():
+    app = _create_test_app()
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -53,7 +54,8 @@ async def test_docs_endpoint_is_customized_and_returns_html(app):
 
 
 @pytest.mark.anyio
-async def test_openapi_endpoint_exposes_expected_metadata(app):
+async def test_openapi_endpoint_exposes_expected_metadata():
+    app = _create_test_app()
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -67,7 +69,8 @@ async def test_openapi_endpoint_exposes_expected_metadata(app):
 
 
 @pytest.mark.anyio
-async def test_middleware_passes_trace_id_through_response(app):
+async def test_middleware_passes_trace_id_through_response():
+    app = _create_test_app()
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
