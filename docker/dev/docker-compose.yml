@@ -11,6 +11,11 @@ services:
             - "5432:5432"
         volumes:
             - postgres_data_dev:/var/lib/postgresql/data
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+            interval: 5s
+            timeout: 3s
+            retries: 10
 
     api:
         container_name: finance-manager-api-dev
@@ -22,7 +27,8 @@ services:
         env_file:
             - .env
         depends_on:
-            - postgres
+            postgres:
+                condition: service_healthy
         ports:
             - "8000:8000"
 
