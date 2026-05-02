@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import (
+    UTC,
     datetime,
 )
 from http import HTTPStatus
@@ -31,15 +32,12 @@ def _response_error(
         "status": status_code,
         "type": type_ or "about:blank",
         "timestamp": datetime.now(
-            tz=datetime.UTC,
+            tz=UTC,
         )
         .isoformat(
             timespec="milliseconds",
         )
-        .replace(
-            old="+00:00",
-            new="Z",
-        ),
+        .replace("+00:00", "Z"),
     }
 
     if detail:
