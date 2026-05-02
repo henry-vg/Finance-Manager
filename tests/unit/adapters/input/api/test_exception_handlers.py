@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -33,6 +35,26 @@ def _create_test_app() -> FastAPI:
     return app
 
 
+def _assert_problem_details(
+    response: httpx.Response,
+    *,
+    expected_status: int,
+    expected_detail: str,
+    expected_instance: str,
+    expected_trace_id: str | None,
+) -> None:
+    payload = response.json()
+
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert payload["title"] == HTTPStatus(expected_status).phrase
+    assert payload["status"] == expected_status
+    assert payload["type"] == "about:blank"
+    assert payload["detail"] == expected_detail
+    assert payload["instance"] == expected_instance
+    assert payload["trace_id"] == expected_trace_id
+    assert payload["timestamp"].endswith("Z")
+
+
 @pytest.mark.anyio
 async def test_http_exception_is_rendered_as_problem_details():
     transport = httpx.ASGITransport(app=_create_test_app())
@@ -41,9 +63,13 @@ async def test_http_exception_is_rendered_as_problem_details():
         response = await client.get("/http", headers={"X-Trace-Id": "trace-123"})
 
     assert response.status_code == 404
-    assert response.headers["content-type"].startswith("application/problem+json")
-    assert response.json()["detail"] == "missing"
-    assert response.json()["trace_id"] == "trace-123"
+    _assert_problem_details(
+        response,
+        expected_status=404,
+        expected_detail="missing",
+        expected_instance="http://test/http",
+        expected_trace_id="trace-123",
+    )
 
 
 @pytest.mark.anyio
@@ -54,7 +80,13 @@ async def test_body_validation_error_is_rendered_as_422_problem_details():
         response = await client.post("/body", json={"value": "bad"})
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Validation failed."
+    _assert_problem_details(
+        response,
+        expected_status=422,
+        expected_detail="Validation failed.",
+        expected_instance="http://test/body",
+        expected_trace_id=None,
+    )
     assert "errors" in response.json()
 
 
@@ -66,7 +98,13 @@ async def test_non_body_validation_error_is_rendered_as_400_problem_details():
         response = await client.get("/query", params={"value": "bad"})
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid request."
+    _assert_problem_details(
+        response,
+        expected_status=400,
+        expected_detail="Invalid request.",
+        expected_instance="http://test/query?value=bad",
+        expected_trace_id=None,
+    )
     assert "errors" in response.json()
 
 
@@ -78,5 +116,10 @@ async def test_generic_exception_is_rendered_as_500_problem_details():
         response = await client.get("/boom")
 
     assert response.status_code == 500
-    assert response.json()["detail"] == "An unexpected error occurred."
-    assert response.json()["type"] == "about:blank"
+    _assert_problem_details(
+        response,
+        expected_status=500,
+        expected_detail="An unexpected error occurred.",
+        expected_instance="http://test/boom",
+        expected_trace_id=None,
+    )
