@@ -76,3 +76,16 @@ def test_supporting_infra_does_not_import_adapters():
     ).should_not().import_modules_that().are_sub_modules_of(
         f"{prefix}.adapters",
     ).assert_applies(evaluable())
+
+
+def test_non_http_infra_does_not_import_adapters():
+    prefix = module_prefix()
+    Rule().modules_that().are_sub_modules_of(
+        [
+            f"{prefix}.infra.bootstrap",
+            f"{prefix}.infra.main",
+            f"{prefix}.infra.postgres",
+        ],
+    ).should_not().import_modules_that().are_sub_modules_of(
+        f"{prefix}.adapters",
+    ).assert_applies(evaluable())
