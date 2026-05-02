@@ -1,4 +1,17 @@
 services:
+    postgres:
+        container_name: finance-manager-postgres-dev
+        image: postgres:17-alpine
+        restart: unless-stopped
+        environment:
+            - POSTGRES_DB=finance_manager
+            - POSTGRES_USER=finance_manager
+            - POSTGRES_PASSWORD=finance_manager
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data_dev:/var/lib/postgresql/data
+
     api:
         container_name: finance-manager-api-dev
         init: true
@@ -8,5 +21,11 @@ services:
             dockerfile: ./docker/dev/Dockerfile
         env_file:
             - .env
+        depends_on:
+            - postgres
         ports:
             - "8000:8000"
+
+volumes:
+    postgres_data_dev:
+        driver: local

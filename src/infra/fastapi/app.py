@@ -1,22 +1,32 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from src.adapters.input.api.exception_handlers import add_exception_handlers
 from src.adapters.input.api.middlewares import add_middlewares
 from src.adapters.input.api.router import create_api_router
-from src.infra.bootstrap import build_application_container
+from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.infra.logging import setup_logging
+from src.infra.settings import Settings
 
 from .tags import openapi_tags
 
 logger = logging.getLogger(name=__name__)
 
 
-def create_app() -> FastAPI:
-    container = build_application_container()
-    settings = container.settings
+@asynccontextmanager
+async def _default_lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
 
+
+def create_http_app(
+    *,
+    settings: Settings,
+    healthz_input_port: HealthzInputPort,
+    lifespan=_default_lifespan,
+) -> FastAPI:
     setup_logging(settings=settings)
 
     logger.info(
@@ -28,6 +38,7 @@ def create_app() -> FastAPI:
         description=settings.fastapi.description,
         version=settings.fastapi.version,
         docs_url=None,
+        lifespan=lifespan,
         redoc_url=settings.fastapi.redoc_url,
         openapi_url=settings.fastapi.openapi_url,
         openapi_tags=openapi_tags,
@@ -45,7 +56,7 @@ def create_app() -> FastAPI:
         docs_title=settings.fastapi.docs_title,
         docs_dark_mode=settings.fastapi.docs_dark_mode,
         openapi_url=settings.fastapi.openapi_url,
-        healthz_input_port=container.healthz_input_port,
+        healthz_input_port=healthz_input_port,
     )
 
     app.include_router(router=router)

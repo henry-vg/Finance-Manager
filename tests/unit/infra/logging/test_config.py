@@ -10,6 +10,7 @@ from src.infra.settings.models import (
     FastAPISettings,
     LogLevel,
     LogSettings,
+    PostgresSettings,
     Settings,
 )
 
@@ -24,6 +25,16 @@ def _build_settings(
 ) -> Settings:
     return Settings(
         environment=Environment.DEV,
+        postgres=PostgresSettings(
+            host="localhost",
+            port=5432,
+            user="finance_manager",
+            password="finance_manager",
+            database="finance_manager",
+            echo=False,
+            pool_size=10,
+            max_overflow=20,
+        ),
         log=LogSettings(
             root_enabled=True,
             console_enabled=console_enabled,

@@ -9,12 +9,9 @@ The project follows a strict dependency direction:
 
 `Adapter/input -> Port/input -> UseCase -> Domain -> Port/output -> Adapter/output`
 
-- `src/core/domain`: pure domain objects and business concepts.
-- `src/core/ports`: input and output contracts owned by the core.
-- `src/core/use_cases`: application orchestration implementing input ports.
-- `src/adapters/input`: driving adapters such as the HTTP API.
-- `src/adapters/output`: driven adapters such as databases and external services.
-- `src/infra`: composition root, framework wiring, settings and logging.
+- `src/core`: business concepts, rules, contracts and application orchestration.
+- `src/adapters`: entry and exit integrations around the core.
+- `src/infra`: runtime, assembly, configuration and operational concerns that support the application.
 
 The architectural boundaries are enforced by `pytestarch` tests in `tests/architecture`.
 
@@ -28,7 +25,17 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r docker/dev/requirements.txt
-uvicorn src.infra.fastapi.app:create_app --factory --reload --reload-dir=src
+docker compose -f docker/dev/docker-compose.yml up -d postgres
+docker compose -f docker/dev/docker-compose.yml ps postgres  # wait until healthy
+CFG_POSTGRES_HOST=localhost alembic upgrade head
+CFG_POSTGRES_HOST=localhost uvicorn src.infra.main:create_app --factory --reload --reload-dir=src
+```
+
+
+## How To Run With Docker
+
+```bash
+docker compose -f docker/dev/docker-compose.yml up --build
 ```
 
 
@@ -36,6 +43,14 @@ uvicorn src.infra.fastapi.app:create_app --factory --reload --reload-dir=src
 
 ```bash
 pytest -q
+```
+
+
+## How To Run Migrations
+
+```bash
+alembic upgrade head
+alembic downgrade -1
 ```
 
 
@@ -72,9 +87,6 @@ Finance-Manager
 
 # TODOs
 
-- fazer bootstrap (container) na infra api?
-- deixar testes redondos
-- o settings não deve ser computado toda vez que é importado
 - adicionar URIs relevantes para 'type' nas respostas que seguem o padrão RFC-9457
 
 

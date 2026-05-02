@@ -14,7 +14,8 @@ class HealthzLiveness:
 
 @dataclass(frozen=True)
 class HealthzReadinessDependencies:
-    api_server: HealthzStatus
+    api: HealthzStatus
+    database: HealthzStatus
 
 
 @dataclass(frozen=True)

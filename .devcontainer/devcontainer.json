@@ -18,12 +18,17 @@
         "PYTHONDONTWRITEBYTECODE": "1"
     },
     "runServices": [
+        "postgres",
         "api"
     ],
     "forwardPorts": [
+        5432,
         8000
     ],
     "portsAttributes": {
+        "5432": {
+            "label": "FinanceManagerPostgres"
+        },
         "8000": {
             "label": "FinanceManagerAPI"
         }

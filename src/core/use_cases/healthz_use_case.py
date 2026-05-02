@@ -5,20 +5,28 @@ from src.core.domain.healthz import (
     HealthzStatus,
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.output.database_health_output_port import DatabaseHealthOutputPort
 
 
 class HealthzUseCase(HealthzInputPort):
-    def get_healthz_liveness(
+    def __init__(
+        self,
+        database_health_output_port: DatabaseHealthOutputPort,
+    ) -> None:
+        self._database_health_output_port = database_health_output_port
+
+    async def get_healthz_liveness(
         self,
     ) -> HealthzLiveness:
         return HealthzLiveness(
             status=HealthzStatus.OK,
         )
 
-    def get_healthz_readiness(
+    async def get_healthz_readiness(
         self,
     ) -> HealthzReadiness:
         api_server_status = self._get_api_server_status()
+        database_status = await self._database_health_output_port.get_database_status()
 
         status = (
             HealthzStatus.OK
@@ -26,6 +34,7 @@ class HealthzUseCase(HealthzInputPort):
                 dependency == HealthzStatus.OK
                 for dependency in [
                     api_server_status,
+                    database_status,
                 ]
             )
             else HealthzStatus.NOT_OK
@@ -34,7 +43,8 @@ class HealthzUseCase(HealthzInputPort):
         return HealthzReadiness(
             status=status,
             dependencies=HealthzReadinessDependencies(
-                api_server=api_server_status,
+                api=api_server_status,
+                database=database_status,
             ),
         )
 

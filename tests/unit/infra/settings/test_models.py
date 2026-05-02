@@ -6,6 +6,7 @@ from src.infra.settings.models import (
     Environment,
     FastAPISettings,
     LogSettings,
+    PostgresSettings,
     Settings,
     load_settings,
 )
@@ -22,6 +23,14 @@ def _set_required_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "CFG_FASTAPI_DOCS_DARK_MODE": "True",
         "CFG_FASTAPI_OPENAPI_URL": "/openapi.json",
         "CFG_FASTAPI_REDOC_URL": "",
+        "CFG_POSTGRES_HOST": "postgres",
+        "CFG_POSTGRES_PORT": "5432",
+        "CFG_POSTGRES_USER": "finance_manager",
+        "CFG_POSTGRES_PASSWORD": "finance_manager",
+        "CFG_POSTGRES_DATABASE": "finance_manager",
+        "CFG_POSTGRES_ECHO": "False",
+        "CFG_POSTGRES_POOL_SIZE": "10",
+        "CFG_POSTGRES_MAX_OVERFLOW": "20",
         "CFG_LOG_ROOT_ENABLED": "True",
         "CFG_LOG_CONSOLE_ENABLED": "True",
         "CFG_LOG_CONSOLE_LEVEL": "DEBUG",
@@ -61,6 +70,25 @@ def test_load_settings_uses_dev_env_file_by_default(monkeypatch: pytest.MonkeyPa
     assert settings.environment == Environment.DEV
     assert settings.fastapi.title == "Finance Manager API"
     assert settings.log.console_level.value == "DEBUG"
+    assert settings.postgres.host == "postgres"
+    assert settings.postgres.dsn == (
+        "postgresql+asyncpg://finance_manager:finance_manager@postgres:5432/"
+        "finance_manager"
+    )
+
+
+def test_load_settings_can_be_overridden_for_local_host(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("CFG_POSTGRES_HOST", "localhost")
+
+    settings = load_settings()
+
+    assert settings.postgres.host == "localhost"
+    assert settings.postgres.dsn == (
+        "postgresql+asyncpg://finance_manager:finance_manager@localhost:5432/"
+        "finance_manager"
+    )
 
 
 def test_load_settings_uses_process_environment_in_prd(
@@ -77,6 +105,7 @@ def test_load_settings_uses_process_environment_in_prd(
     assert isinstance(settings, Settings)
     assert isinstance(settings.log, LogSettings)
     assert isinstance(settings.fastapi, FastAPISettings)
+    assert isinstance(settings.postgres, PostgresSettings)
 
 
 def test_load_settings_is_cached(monkeypatch: pytest.MonkeyPatch):
@@ -89,3 +118,4 @@ def test_load_settings_is_cached(monkeypatch: pytest.MonkeyPatch):
 
     assert first is second
     assert second.fastapi.title == "Finance Manager API"
+    assert second.postgres.database == "finance_manager"

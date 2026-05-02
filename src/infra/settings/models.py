@@ -67,6 +67,31 @@ class FastAPISettings(BaseSettings):
     redoc_url: str
 
 
+class PostgresSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="CFG_POSTGRES_",
+        case_sensitive=False,
+        extra="ignore",
+        frozen=True,
+    )
+
+    host: str
+    port: int
+    user: str
+    password: str
+    database: str
+    echo: bool
+    pool_size: int
+    max_overflow: int
+
+    @property
+    def dsn(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.user}:{self.password}"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CFG_",
@@ -79,6 +104,7 @@ class Settings(BaseSettings):
 
     log: LogSettings
     fastapi: FastAPISettings
+    postgres: PostgresSettings
 
 
 @lru_cache(maxsize=1)
@@ -93,4 +119,5 @@ def load_settings() -> Settings:
         _env_file=env_file,
         log=LogSettings(_env_file=env_file),
         fastapi=FastAPISettings(_env_file=env_file),
+        postgres=PostgresSettings(_env_file=env_file),
     )

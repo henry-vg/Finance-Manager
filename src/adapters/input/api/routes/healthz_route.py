@@ -38,8 +38,8 @@ def create_router(
         },
         summary="Healthz Liveness",
     )
-    def get_healthz_liveness() -> HealthzLivenessResponse:
-        result = healthz_input_port.get_healthz_liveness()
+    async def get_healthz_liveness() -> HealthzLivenessResponse:
+        result = await healthz_input_port.get_healthz_liveness()
 
         return HealthzLivenessResponse(
             status=HealthzStatus(result.status.value),
@@ -67,8 +67,8 @@ def create_router(
         },
         summary="Healthz Readiness",
     )
-    def get_healthz_readiness(response: Response) -> HealthzReadinessResponse:
-        result = healthz_input_port.get_healthz_readiness()
+    async def get_healthz_readiness(response: Response) -> HealthzReadinessResponse:
+        result = await healthz_input_port.get_healthz_readiness()
 
         response.status_code = (
             status.HTTP_200_OK
@@ -79,7 +79,8 @@ def create_router(
         return HealthzReadinessResponse(
             status=HealthzStatus(result.status.value),
             dependencies=HealthzReadinessDependencies(
-                fastapi=HealthzStatus(result.dependencies.api_server.value),
+                api=HealthzStatus(result.dependencies.api.value),
+                database=HealthzStatus(result.dependencies.database.value),
             ),
         )
 

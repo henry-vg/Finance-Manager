@@ -1,4 +1,13 @@
 services:
+    postgres:
+        container_name: finance-manager-postgres
+        image: postgres:17-alpine
+        restart: unless-stopped
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+
     api:
         container_name: finance-manager-api
         init: true
@@ -7,10 +16,12 @@ services:
             context: ../../
             dockerfile: ./docker/prd/Dockerfile
         environment:
-            CFG_ENVIRONMENT: PRD
+            - CFG_ENVIRONMENT=PRD
         ports:
             - "8000:8000"
-        command: [ "uvicorn", "src.infra.fastapi.app:create_app", "--factory", "--host=0.0.0.0", "--port=8000", "--proxy-headers", "--forwarded-allow-ips=*", "--no-server-header", "--timeout-keep-alive=5", "--timeout-graceful-shutdown=20", "--limit-concurrency=1000", "--backlog=2048", "--no-access-log" ]
+        depends_on:
+            postgres:
+        command: [ "uvicorn", "src.infra.main:create_app", "--factory", "--host=0.0.0.0", "--port=8000", "--proxy-headers", "--forwarded-allow-ips=*", "--no-server-header", "--timeout-keep-alive=5", "--timeout-graceful-shutdown=20", "--limit-concurrency=1000", "--backlog=2048", "--no-access-log" ]
         cpus: 1.0
         mem_limit: 512m
         pids_limit: 256
@@ -19,3 +30,7 @@ services:
             interval: 10s
             timeout: 3s
             retries: 3
+
+volumes:
+    postgres_data:
+        driver: local

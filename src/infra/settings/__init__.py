@@ -3,6 +3,7 @@ from .models import (
     FastAPISettings,
     LogLevel,
     LogSettings,
+    PostgresSettings,
     Settings,
     load_settings,
 )
@@ -12,6 +13,7 @@ __all__ = [
     "LogLevel",
     "LogSettings",
     "FastAPISettings",
+    "PostgresSettings",
     "Settings",
     "load_settings",
 ]

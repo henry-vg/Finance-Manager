@@ -1,12 +1,42 @@
 import httpx
 import pytest
+from fastapi import FastAPI
 from pydantic import BaseModel
 
-from src.infra.fastapi.app import create_app
+from src.core.domain.healthz import (
+    HealthzLiveness,
+    HealthzReadiness,
+    HealthzReadinessDependencies,
+    HealthzStatus,
+)
+from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.infra.fastapi.app import create_http_app
+from src.infra.settings import load_settings
 
 
 class _Payload(BaseModel):
     value: int
+
+
+class _ReadyHealthzInputPortStub(HealthzInputPort):
+    async def get_healthz_liveness(self) -> HealthzLiveness:
+        return HealthzLiveness(status=HealthzStatus.OK)
+
+    async def get_healthz_readiness(self) -> HealthzReadiness:
+        return HealthzReadiness(
+            status=HealthzStatus.OK,
+            dependencies=HealthzReadinessDependencies(
+                api=HealthzStatus.OK,
+                database=HealthzStatus.OK,
+            ),
+        )
+
+
+def _create_test_app() -> FastAPI:
+    return create_http_app(
+        settings=load_settings(),
+        healthz_input_port=_ReadyHealthzInputPortStub(),
+    )
 
 
 @pytest.mark.anyio
@@ -52,7 +82,7 @@ async def test_middleware_passes_trace_id_through_response(app):
 
 @pytest.mark.anyio
 async def test_registered_validation_handler_returns_problem_details_for_body_errors():
-    app = create_app()
+    app = _create_test_app()
 
     @app.post("/validation/body")
     async def validate_body(payload: _Payload) -> dict[str, int]:
@@ -75,7 +105,7 @@ async def test_registered_validation_handler_returns_problem_details_for_body_er
 
 @pytest.mark.anyio
 async def test_registered_validation_handler_returns_problem_details_for_query_errors():
-    app = create_app()
+    app = _create_test_app()
 
     @app.get("/validation/query")
     async def validate_query(value: int) -> dict[str, int]:
@@ -93,7 +123,7 @@ async def test_registered_validation_handler_returns_problem_details_for_query_e
 
 @pytest.mark.anyio
 async def test_registered_generic_exception_handler_returns_problem_details():
-    app = create_app()
+    app = _create_test_app()
 
     @app.get("/boom")
     async def boom() -> None:

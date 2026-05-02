@@ -13,7 +13,8 @@ class HealthzLivenessResponse(BaseModel):
 
 
 class HealthzReadinessDependencies(BaseModel):
-    fastapi: HealthzStatus
+    api: HealthzStatus
+    database: HealthzStatus
 
 
 class HealthzReadinessResponse(BaseModel):

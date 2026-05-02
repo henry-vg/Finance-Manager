@@ -10,14 +10,17 @@ from src.core.domain.healthz import (
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 
 
-class _HealthyHealthzUseCase(HealthzInputPort):
-    def get_healthz_liveness(self) -> HealthzLiveness:
+class _HealthyHealthzInputPortStub(HealthzInputPort):
+    async def get_healthz_liveness(self) -> HealthzLiveness:
         return HealthzLiveness(status=HealthzStatus.OK)
 
-    def get_healthz_readiness(self) -> HealthzReadiness:
+    async def get_healthz_readiness(self) -> HealthzReadiness:
         return HealthzReadiness(
             status=HealthzStatus.OK,
-            dependencies=HealthzReadinessDependencies(api_server=HealthzStatus.OK),
+            dependencies=HealthzReadinessDependencies(
+                api=HealthzStatus.OK,
+                database=HealthzStatus.OK,
+            ),
         )
 
 
@@ -27,7 +30,7 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
         docs_title="Docs",
         docs_dark_mode=True,
         openapi_url="/openapi.json",
-        healthz_input_port=_HealthyHealthzUseCase(),
+        healthz_input_port=_HealthyHealthzInputPortStub(),
     )
 
     routes_by_path = {
