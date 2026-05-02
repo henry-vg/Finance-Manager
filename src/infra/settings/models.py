@@ -1,4 +1,6 @@
+import os
 from enum import StrEnum
+from functools import lru_cache
 
 from pydantic_settings import (
     BaseSettings,
@@ -25,7 +27,6 @@ class LogSettings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
         frozen=True,
-        env_file="docker/dev/.env",
     )
 
     root_enabled: bool
@@ -54,7 +55,6 @@ class FastAPISettings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
         frozen=True,
-        env_file="docker/dev/.env",
     )
 
     title: str
@@ -73,14 +73,24 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
         frozen=True,
-        env_file="docker/dev/.env",
     )
 
     environment: Environment
 
-    log: LogSettings = LogSettings()
-    fastapi: FastAPISettings = FastAPISettings()
+    log: LogSettings
+    fastapi: FastAPISettings
 
 
+@lru_cache(maxsize=1)
 def load_settings() -> Settings:
-    return Settings()
+    env_file = (
+        "docker/dev/.env"
+        if os.getenv("CFG_ENVIRONMENT", Environment.DEV.value) == Environment.DEV.value
+        else None
+    )
+
+    return Settings(
+        _env_file=env_file,
+        log=LogSettings(_env_file=env_file),
+        fastapi=FastAPISettings(_env_file=env_file),
+    )
