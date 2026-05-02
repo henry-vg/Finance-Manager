@@ -1,0 +1,10 @@
+colorlog==6.9.0
+debugpy==1.8.19
+fastapi==0.116.1
+httpx==0.28.1
+pydantic-settings==2.10.1
+pytest==8.4.1
+pytestarch==4.0.1
+python-dotenv==1.1.1
+python-json-logger==3.3.0
+uvicorn==0.35.0
