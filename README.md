@@ -39,6 +39,15 @@ pytest -q
 ```
 
 
+## Quality Checks
+
+```bash
+ruff check .
+mypy .
+pytest -q
+```
+
+
 ## Folder Structure
 
 ```

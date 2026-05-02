@@ -2,7 +2,6 @@ import json
 import logging
 from datetime import (
     datetime,
-    timezone,
 )
 from http import HTTPStatus
 
@@ -32,7 +31,7 @@ def _response_error(
         "status": status_code,
         "type": type_ or "about:blank",
         "timestamp": datetime.now(
-            tz=timezone.utc,
+            tz=datetime.UTC,
         )
         .isoformat(
             timespec="milliseconds",
@@ -79,9 +78,7 @@ async def _http_exception_handler(
     status_code = exc.status_code if 400 <= exc.status_code <= 599 else 500
     title = HTTPStatus(value=status_code).phrase
     detail = (
-        exc.detail
-        if isinstance(exc.detail, (str, type(None)))
-        else json.dumps(obj=exc.detail)
+        exc.detail if isinstance(exc.detail, str | None) else json.dumps(obj=exc.detail)
     )
     instance = str(object=request.url)
 

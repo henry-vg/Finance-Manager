@@ -1,6 +1,6 @@
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from logging.config import dictConfig
 from pathlib import Path
 
@@ -95,7 +95,7 @@ class ShowExtrasFilter(logging.Filter):
 
 def setup_logging(settings: Settings) -> None:
     logging.Formatter.formatTime = lambda self, record, datefmt=None: (
-        datetime.fromtimestamp(record.created, tz=timezone.utc)
+        datetime.fromtimestamp(record.created, tz=datetime.UTC)
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
