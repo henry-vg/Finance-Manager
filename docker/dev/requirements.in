@@ -1,0 +1,16 @@
+alembic==1.18.4
+asyncpg==0.31.0
+colorlog==6.10.1
+debugpy==1.8.20
+fastapi==0.136.1
+httpx==0.28.1
+mypy==1.20.2
+pip-tools==7.5.3
+pydantic-settings==2.14.0
+pytest==9.0.3
+pytestarch==4.0.1
+python-dotenv==1.2.2
+python-json-logger==4.1.0
+ruff==0.15.12
+sqlalchemy==2.0.49
+uvicorn==0.46.0
