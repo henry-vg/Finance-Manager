@@ -50,7 +50,8 @@ def create_router(
         response_model=HealthzReadinessResponse,
         status_code=200,
         description=(
-            "Endpoint used to determine whether the application is ready to receive traffic. "
+            "Endpoint used to determine whether the application is ready "
+            "to receive traffic. "
             "Readiness checks may validate required dependencies and internal state."
         ),
         responses={
@@ -58,7 +59,10 @@ def create_router(
                 "description": "The application is ready to receive traffic.",
             },
             503: {
-                "description": "The application is not ready to receive traffic because one or more required services are unavailable.",
+                "description": (
+                    "The application is not ready to receive traffic because "
+                    "one or more required services are unavailable."
+                ),
             },
         },
         summary="Healthz Readiness",
