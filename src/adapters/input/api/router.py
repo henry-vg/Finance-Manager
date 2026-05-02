@@ -29,7 +29,7 @@ def create_api_router(
     api_router.include_router(
         router=healthz_route.create_router(
             healthz_input_port=healthz_input_port,
-        )
+        ),
     )
 
     return api_router

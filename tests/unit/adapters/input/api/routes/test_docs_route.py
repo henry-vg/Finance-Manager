@@ -14,7 +14,7 @@ async def test_docs_route_returns_html_with_dark_mode_enabled():
             docs_title="Docs - Finance Manager API",
             docs_dark_mode=True,
             openapi_url="/openapi.json",
-        )
+        ),
     )
 
     transport = httpx.ASGITransport(app=app)
@@ -36,7 +36,7 @@ async def test_docs_route_returns_html_without_dark_mode_script():
             docs_title="Docs - Finance Manager API",
             docs_dark_mode=False,
             openapi_url="/openapi.json",
-        )
+        ),
     )
 
     transport = httpx.ASGITransport(app=app)

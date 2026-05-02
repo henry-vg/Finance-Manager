@@ -8,10 +8,9 @@ from src.adapters.input.api.exception_handlers import add_exception_handlers
 from src.adapters.input.api.middlewares import add_middlewares
 from src.adapters.input.api.router import create_api_router
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.infra.fastapi.tags import openapi_tags
 from src.infra.logging import setup_logging
 from src.infra.settings import Settings
-
-from .tags import openapi_tags
 
 logger = logging.getLogger(name=__name__)
 
@@ -30,7 +29,7 @@ def create_http_app(
     setup_logging(settings=settings)
 
     logger.info(
-        msg=f"Starting application under '{settings.environment}' environment..."
+        msg=f"Starting application under '{settings.environment}' environment...",
     )
 
     app = FastAPI(

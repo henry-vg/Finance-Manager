@@ -7,5 +7,5 @@ openapi_tags = [
             "for process "
             "verification and readiness checks for dependency validation."
         ),
-    }
+    },
 ]

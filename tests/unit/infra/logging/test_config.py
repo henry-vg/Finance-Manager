@@ -182,7 +182,7 @@ def test_setup_logging_configures_file_handler_variants(
             file_path=str(file_path),
             file_rotate=file_rotate,
             unhandled_exceptions=False,
-        )
+        ),
     )
 
     assert file_path.parent.exists()

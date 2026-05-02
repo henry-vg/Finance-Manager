@@ -12,7 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-logger = logging.getLogger(name=__name__)
+logger = logging.getLogger(__name__)
 
 
 def _response_error(
@@ -114,7 +114,7 @@ async def _validation_exception_handler(
     instance = str(object=request.url)
 
     logger.warning(
-        msg=f"{request.method} {request.url} {status_code} - {detail} - {errors}"
+        msg=f"{request.method} {request.url} {status_code} - {detail} - {errors}",
     )
 
     return _response_error(
@@ -138,7 +138,7 @@ async def _generic_exception_handler(
     instance = str(object=request.url)
 
     logger.exception(
-        msg=f"{request.method} {request.url} {status_code} - Unhandled error"
+        msg=f"{request.method} {request.url} {status_code} - Unhandled error",
     )
 
     return _response_error(
