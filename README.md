@@ -13,6 +13,28 @@ The project follows a strict dependency direction:
 - `src/adapters`: entry and exit integrations around the core.
 - `src/infra`: runtime, assembly, configuration and operational concerns that support the application.
 
+Transactional work is coordinated explicitly through a Unit of Work:
+
+- use cases depend on a core-owned `UnitOfWorkOutputPortFactory` port.
+- the Postgres implementation opens one async session per use-case execution.
+- the infrastructure exposes the Postgres Unit of Work factory through the composition root; the concrete Unit of Work is not part of the public wiring surface.
+- repositories are session-bound and may `flush`/`refresh`, but they do not `commit` or `rollback`.
+
+Postgres persistence follows an aggregate-oriented organization:
+
+- `src/infra/postgres/<aggregate>/` names the aggregate persistence module, not a physical table.
+- aggregate modules stay singular when they represent a singular domain concept, for example `src/infra/postgres/user/`.
+- SQLAlchemy mappings for physical tables live under `src/infra/postgres/<aggregate>/models/`.
+- model files are named after the physical table, for example `src/infra/postgres/user/models/users.py` for the `users` table.
+- one repository may depend on multiple table models; repository boundaries do not need to match table boundaries.
+- shared Postgres-only plumbing, such as integrity-error inspection, belongs in `src/infra/postgres/` and not inside a single aggregate module.
+
+When adding a new aggregate that must participate in the same transactional boundary:
+
+- add its output-port property to the core `UnitOfWorkOutputPort` contract.
+- wire its concrete repository inside `SQLAlchemyPostgresUnitOfWork`.
+- expose it through the active unit of work instead of opening a separate session in the use case.
+
 The architectural boundaries are enforced by `pytestarch` tests in `tests/architecture`.
 
 
@@ -76,8 +98,15 @@ Finance-Manager
 │   ├── core                         # Business core
 │   │   ├── domain                   # Entities, value objects and domain rules
 │   │   ├── ports                    # Core-owned contracts
-│   │   └── use_cases                # Use-case orchestration
+│   │   └── usecases                 # Use-case orchestration
 │   └── infra                        # Composition root and technical infrastructure
+│       └── postgres                 # Postgres runtime, shared helpers and aggregate persistence modules
+│           ├── integrity.py         # Shared Postgres integrity-error inspection helpers
+│           ├── unit_of_work.py      # Transaction boundary wiring for aggregate repositories
+│           └── user                 # Aggregate-oriented persistence module for User
+│               ├── repository.py    # SQLAlchemy implementation of the user output port
+│               └── models
+│                   └── users.py     # SQLAlchemy mapping for the physical users table
 └── tests                            # Automated tests
     ├── architecture                 # Architectural boundary enforcement
     ├── integration                  # Integration tests (real components working together)
@@ -94,11 +123,10 @@ Finance-Manager
 - Faça um ApiSchemaBase para todos os schemas HTTP, e nela a gente formata os datetimes do jeito que quisermos, de forma centralizada; sempre o formato deve ser no tipo "2026-05-03T17:35:18.123Z"
 - Adicionar description e responses nas rotas de users
 - Fazer get user by email ao invés de get user by id (sendo assim, o id pode ser incremental no banco, visto que é id interno - ou adotamos a prática de fazer uuid sempre?)
+- Promover o ciclo transacional para uma abstração explícita de Unit of Work, definida como port no core e implementada na infra
 
 ## PENDENTE
 
-- Agora precisamos lidar com ciclo de trabalho transacional do banco de dados (commit/rollback/refresh) da melhor forma, porque no nosso repositor já está duplicando as coisas, como já vimos; faça um plano para resolvermos isso, promovendo para uma abstração explícita de unit of work, definida como port no core e implementada na infra.
----
 - Melhor salvar "scrypt$n=16384$r=8$p=1$salt$hash" ao invés de "scrypt$salt$hash" nas senhas; é bom definir dklen explicitamente; Adicionar método de verificação de hashes
 ---
 - Adicionar pagination central
