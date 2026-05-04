@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import Date, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import PostgresPersistedRecordMixin, mapper_registry
+from ..base import PostgresPersistedRecordMixin, mapper_registry
 
 
 @mapper_registry.mapped

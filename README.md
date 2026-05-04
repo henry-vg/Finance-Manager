@@ -97,7 +97,6 @@ Finance-Manager
 
 ## PENDENTE
 
-- Como organizar 'infra.postgres' da melhor forma? Devemos separar tabelas em pastas? Ou separar ADAPTERS em pastas (para incluir o health)? A dúvida surge pela cardinalidade diferente de base e runtime com o resto dos arquivos.
 - Agora precisamos lidar com ciclo de trabalho transacional do banco de dados (commit/rollback/refresh) da melhor forma, porque no nosso repositor já está duplicando as coisas, como já vimos; faça um plano para resolvermos isso, promovendo para uma abstração explícita de unit of work, definida como port no core e implementada na infra.
 ---
 - Melhor salvar "scrypt$n=16384$r=8$p=1$salt$hash" ao invés de "scrypt$salt$hash" nas senhas; é bom definir dklen explicitamente; Adicionar método de verificação de hashes

@@ -6,8 +6,7 @@ from .runtime import (
     dispose_postgres_engine,
     get_postgres_session,
 )
-from .user_model import UserRecord
-from .user_repository import SQLAlchemyUserOutputAdapter
+from .users import SQLAlchemyUserOutputAdapter, UserRecord
 
 __all__ = [
     "mapper_registry",

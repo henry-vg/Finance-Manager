@@ -11,7 +11,7 @@ from src.core.domain.user import (
 )
 from src.core.ports.output.user_output_port import UserOutputPort
 
-from .user_model import UserRecord
+from .model import UserRecord
 
 
 def _to_domain_user(
