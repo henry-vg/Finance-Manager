@@ -6,12 +6,14 @@ from .runtime import (
     dispose_postgres_engine,
     get_postgres_session,
 )
-from .users import SQLAlchemyUserOutputAdapter, UserRecord
+from .unit_of_work import SQLAlchemyPostgresUnitOfWorkFactory
+from .user import SQLAlchemyUserOutputAdapter, UserRecord
 
 __all__ = [
     "mapper_registry",
     "postgres_metadata",
     "SQLAlchemyPostgresHealthAdapter",
+    "SQLAlchemyPostgresUnitOfWorkFactory",
     "SQLAlchemyUserOutputAdapter",
     "UserRecord",
     "create_postgres_engine",

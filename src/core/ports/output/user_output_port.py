@@ -3,6 +3,10 @@ from typing import Protocol
 from src.core.domain.user import NewUser, User, UserChanges
 
 
+class UserEmailConflictOutputPortError(Exception):
+    pass
+
+
 class UserOutputPort(Protocol):
     async def get_user_by_email(
         self,

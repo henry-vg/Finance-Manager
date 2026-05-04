@@ -9,7 +9,7 @@ from src.core.usecases.healthz_usecase import HealthzUseCase
 from src.core.usecases.user_usecase import UserUseCase
 from src.infra.postgres import (
     SQLAlchemyPostgresHealthAdapter,
-    SQLAlchemyUserOutputAdapter,
+    SQLAlchemyPostgresUnitOfWorkFactory,
     create_postgres_engine,
     create_postgres_session_factory,
 )
@@ -35,7 +35,9 @@ def build_application_container() -> ApplicationContainer:
     postgres_engine = create_postgres_engine(settings.postgres)
     postgres_session_factory = create_postgres_session_factory(postgres_engine)
     postgres_health_output_port = SQLAlchemyPostgresHealthAdapter(postgres_engine)
-    user_output_port = SQLAlchemyUserOutputAdapter(postgres_session_factory)
+    unit_of_work_output_port_factory = SQLAlchemyPostgresUnitOfWorkFactory(
+        postgres_session_factory,
+    )
     password_hasher_output_port = ScryptPasswordHasher()
 
     return ApplicationContainer(
@@ -47,7 +49,7 @@ def build_application_container() -> ApplicationContainer:
             database_health_output_port=postgres_health_output_port,
         ),
         user_input_port=UserUseCase(
-            user_output_port=user_output_port,
+            unit_of_work_output_port_factory=unit_of_work_output_port_factory,
             password_hasher_output_port=password_hasher_output_port,
         ),
     )
