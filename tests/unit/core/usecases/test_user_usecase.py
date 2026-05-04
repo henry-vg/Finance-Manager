@@ -12,7 +12,14 @@ from src.core.domain.user import (
     UserNotFoundError,
 )
 from src.core.ports.output.password_hasher_output_port import PasswordHasherOutputPort
-from src.core.ports.output.user_output_port import UserOutputPort
+from src.core.ports.output.unit_of_work_output_port import (
+    UnitOfWorkOutputPort,
+    UnitOfWorkOutputPortFactory,
+)
+from src.core.ports.output.user_output_port import (
+    UserEmailConflictOutputPortError,
+    UserOutputPort,
+)
 from src.core.usecases.user_usecase import UserUseCase
 
 
@@ -74,6 +81,8 @@ class _UserOutputPortStub(UserOutputPort):
         self.deleted_user_ids: list[int] = []
         self.created_users: list[NewUser] = []
         self.updated_users: list[tuple[int, UserChanges]] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
         self._next_user_id = 1
 
     async def get_user_by_email(
@@ -90,6 +99,9 @@ class _UserOutputPortStub(UserOutputPort):
         self,
         new_user: NewUser,
     ) -> User:
+        if self.create_error is not None:
+            raise self.create_error
+
         self.created_users.append(new_user)
 
         created_user = User(
@@ -127,6 +139,9 @@ class _UserOutputPortStub(UserOutputPort):
         user_id: int,
         changes: UserChanges,
     ) -> User:
+        if self.update_error is not None:
+            raise self.update_error
+
         current_user = self.users_by_id.get(user_id)
 
         if current_user is None:
@@ -163,13 +178,71 @@ class _UserOutputPortStub(UserOutputPort):
         self.users_by_id.pop(user_id, None)
 
 
+class _UnitOfWorkOutputPortStub(UnitOfWorkOutputPort):
+    def __init__(
+        self,
+        user_output_port: _UserOutputPortStub,
+    ) -> None:
+        self._user_output_port = user_output_port
+        self.commit_calls = 0
+        self.rollback_calls = 0
+
+    @property
+    def users(self) -> UserOutputPort:
+        return self._user_output_port
+
+    async def __aenter__(self) -> "_UnitOfWorkOutputPortStub":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: object | None,
+    ) -> None:
+        del exc
+        del traceback
+
+        if exc_type is not None:
+            self.rollback_calls += 1
+
+    async def commit(self) -> None:
+        self.commit_calls += 1
+
+
+class _UnitOfWorkOutputPortFactoryStub(UnitOfWorkOutputPortFactory):
+    def __init__(
+        self,
+        user_output_port: _UserOutputPortStub,
+    ) -> None:
+        self._user_output_port = user_output_port
+        self.created_unit_of_work_output_ports: list[_UnitOfWorkOutputPortStub] = []
+
+    def __call__(self) -> _UnitOfWorkOutputPortStub:
+        unit_of_work_output_port = _UnitOfWorkOutputPortStub(
+            self._user_output_port,
+        )
+        self.created_unit_of_work_output_ports.append(unit_of_work_output_port)
+        return unit_of_work_output_port
+
+
 def _build_user_usecase(
-    user_output_port: UserOutputPort,
-) -> UserUseCase:
-    return UserUseCase(
-        user_output_port=user_output_port,
-        password_hasher_output_port=_PasswordHasherOutputPortStub(),
+    user_output_port: _UserOutputPortStub,
+) -> tuple[UserUseCase, _UnitOfWorkOutputPortFactoryStub]:
+    unit_of_work_output_port_factory = _UnitOfWorkOutputPortFactoryStub(
+        user_output_port,
     )
+
+    return UserUseCase(
+        unit_of_work_output_port_factory=unit_of_work_output_port_factory,
+        password_hasher_output_port=_PasswordHasherOutputPortStub(),
+    ), unit_of_work_output_port_factory
+
+
+def _get_created_unit_of_work_output_port(
+    unit_of_work_output_port_factory: _UnitOfWorkOutputPortFactoryStub,
+) -> _UnitOfWorkOutputPortStub:
+    return unit_of_work_output_port_factory.created_unit_of_work_output_ports[0]
 
 
 @pytest.mark.anyio
@@ -187,29 +260,45 @@ async def test_get_user_returns_existing_user() -> None:
     user_output_port_stub = _UserOutputPortStub()
     user_output_port_stub.users_by_id[1] = existing_user
 
-    use_case = _build_user_usecase(user_output_port_stub)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     result = await use_case.get_user(
         email="ada@example.com",
     )
 
     assert result == existing_user
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
 
 
 @pytest.mark.anyio
 async def test_get_user_raises_when_user_does_not_exist() -> None:
-    use_case = _build_user_usecase(_UserOutputPortStub())
+    user_output_port_stub = _UserOutputPortStub()
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     with pytest.raises(UserNotFoundError):
         await use_case.get_user(
             email="missing@example.com",
         )
 
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.rollback_calls == 1
+
 
 @pytest.mark.anyio
 async def test_create_user_hashes_password_and_persists_user() -> None:
     user_output_port_stub = _UserOutputPortStub()
-    use_case = _build_user_usecase(user_output_port_stub)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     result = await use_case.create_user(
         data=_build_create_user_data(),
@@ -249,6 +338,10 @@ async def test_create_user_hashes_password_and_persists_user() -> None:
         ),
     ]
     assert user_output_port_stub.users_by_id[1] == result
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 1
 
 
 @pytest.mark.anyio
@@ -264,12 +357,40 @@ async def test_create_user_raises_when_email_is_already_in_use() -> None:
         created_at=_build_timestamp(year=2026, month=5, day=1),
         updated_at=_build_timestamp(year=2026, month=5, day=2),
     )
-    use_case = _build_user_usecase(user_output_port_stub)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     with pytest.raises(UserEmailConflictError):
         await use_case.create_user(
             data=_build_create_user_data(),
         )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
+    assert unit_of_work_output_port.rollback_calls == 1
+
+
+@pytest.mark.anyio
+async def test_create_user_translates_output_port_conflict_to_domain_error() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.create_error = UserEmailConflictOutputPortError()
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
+
+    with pytest.raises(UserEmailConflictError):
+        await use_case.create_user(
+            data=_build_create_user_data(),
+        )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
+    assert unit_of_work_output_port.rollback_calls == 1
 
 
 @pytest.mark.anyio
@@ -286,7 +407,9 @@ async def test_update_user_replaces_all_fields_and_rehashes_password() -> None:
         created_at=created_at,
         updated_at=_build_timestamp(year=2026, month=5, day=2),
     )
-    use_case = _build_user_usecase(user_output_port_stub)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     result = await use_case.update_user(
         current_email="ada@example.com",
@@ -323,6 +446,10 @@ async def test_update_user_replaces_all_fields_and_rehashes_password() -> None:
             ),
         ),
     ]
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 1
 
 
 @pytest.mark.anyio
@@ -348,7 +475,9 @@ async def test_update_user_raises_when_email_belongs_to_another_user() -> None:
         created_at=_build_timestamp(year=2026, month=5, day=1),
         updated_at=_build_timestamp(year=2026, month=5, day=2),
     )
-    use_case = _build_user_usecase(user_output_port_stub)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     with pytest.raises(UserEmailConflictError):
         await use_case.update_user(
@@ -361,6 +490,43 @@ async def test_update_user_raises_when_email_belongs_to_another_user() -> None:
                 birth_date=date(1815, 12, 10),
             ),
         )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
+    assert unit_of_work_output_port.rollback_calls == 1
+
+
+@pytest.mark.anyio
+async def test_update_user_translates_output_port_conflict_to_domain_error() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.users_by_id[1] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::old-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    user_output_port_stub.update_error = UserEmailConflictOutputPortError()
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
+
+    with pytest.raises(UserEmailConflictError):
+        await use_case.update_user(
+            current_email="ada@example.com",
+            data=_build_update_user_data(),
+        )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
+    assert unit_of_work_output_port.rollback_calls == 1
 
 
 @pytest.mark.anyio
@@ -376,7 +542,9 @@ async def test_delete_user_removes_existing_user() -> None:
         created_at=_build_timestamp(year=2026, month=5, day=1),
         updated_at=_build_timestamp(year=2026, month=5, day=2),
     )
-    use_case = _build_user_usecase(user_output_port_stub)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     await use_case.delete_user(
         email="ada@example.com",
@@ -384,13 +552,25 @@ async def test_delete_user_removes_existing_user() -> None:
 
     assert user_output_port_stub.deleted_user_ids == [1]
     assert 1 not in user_output_port_stub.users_by_id
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 1
 
 
 @pytest.mark.anyio
 async def test_delete_user_raises_when_user_does_not_exist() -> None:
-    use_case = _build_user_usecase(_UserOutputPortStub())
+    user_output_port_stub = _UserOutputPortStub()
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
 
     with pytest.raises(UserNotFoundError):
         await use_case.delete_user(
             email="missing@example.com",
         )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.rollback_calls == 1
