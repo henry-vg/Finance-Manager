@@ -22,30 +22,30 @@ def test_domain_is_isolated_from_outer_layers():
     ).should_not().import_modules_that().are_sub_modules_of(
         [
             f"{prefix}.core.ports",
-            f"{prefix}.core.use_cases",
+            f"{prefix}.core.usecases",
             f"{prefix}.adapters",
             f"{prefix}.infra",
         ],
     ).assert_applies(evaluable())
 
 
-def test_ports_do_not_import_use_cases_or_outer_layers():
+def test_ports_do_not_import_usecases_or_outer_layers():
     prefix = module_prefix()
     Rule().modules_that().are_sub_modules_of(
         f"{prefix}.core.ports",
     ).should_not().import_modules_that().are_sub_modules_of(
         [
-            f"{prefix}.core.use_cases",
+            f"{prefix}.core.usecases",
             f"{prefix}.adapters",
             f"{prefix}.infra",
         ],
     ).assert_applies(evaluable())
 
 
-def test_use_cases_do_not_import_adapters_or_infra():
+def test_usecases_do_not_import_adapters_or_infra():
     prefix = module_prefix()
     Rule().modules_that().are_sub_modules_of(
-        f"{prefix}.core.use_cases",
+        f"{prefix}.core.usecases",
     ).should_not().import_modules_that().are_sub_modules_of(
         [f"{prefix}.adapters", f"{prefix}.infra"],
     ).assert_applies(evaluable())
@@ -60,12 +60,12 @@ def test_adapters_do_not_import_infra():
     ).assert_applies(evaluable())
 
 
-def test_input_adapters_do_not_import_use_cases():
+def test_input_adapters_do_not_import_usecases():
     prefix = module_prefix()
     Rule().modules_that().are_sub_modules_of(
         f"{prefix}.adapters.input",
     ).should_not().import_modules_that().are_sub_modules_of(
-        f"{prefix}.core.use_cases",
+        f"{prefix}.core.usecases",
     ).assert_applies(evaluable())
 
 
