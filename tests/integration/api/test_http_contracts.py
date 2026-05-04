@@ -1,3 +1,5 @@
+from datetime import UTC, date, datetime
+
 import httpx
 import pytest
 from fastapi import FastAPI
@@ -9,9 +11,37 @@ from src.core.domain.healthz import (
     HealthzReadinessDependencies,
     HealthzStatus,
 )
+from src.core.domain.user import (
+    CreateUserData,
+    UpdateUserData,
+    User,
+)
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.user_input_port import UserInputPort
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
+
+
+def _build_timestamp(
+    *,
+    year: int,
+    month: int,
+    day: int,
+    hour: int = 0,
+    minute: int = 0,
+    second: int = 0,
+    microsecond: int = 0,
+) -> datetime:
+    return datetime(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        microsecond,
+        tzinfo=UTC,
+    )
 
 
 class _Payload(BaseModel):
@@ -32,10 +62,65 @@ class _ReadyHealthzInputPortStub(HealthzInputPort):
         )
 
 
+class _UserInputPortStub(UserInputPort):
+    async def get_user(
+        self,
+        email,
+    ) -> User:
+        return User(
+            id=1,
+            first_name="Ada",
+            last_name="Lovelace",
+            email=email,
+            password_hash="hashed::plain-password",
+            birth_date=date(1815, 12, 10),
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=2),
+        )
+
+    async def create_user(
+        self,
+        data: CreateUserData,
+    ) -> User:
+        return User(
+            id=1,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            email=data.email,
+            password_hash="hashed::plain-password",
+            birth_date=data.birth_date,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=1),
+        )
+
+    async def update_user(
+        self,
+        current_email,
+        data: UpdateUserData,
+    ) -> User:
+        return User(
+            id=1,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            email=data.email,
+            password_hash="hashed::plain-password",
+            birth_date=data.birth_date,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=2),
+        )
+
+    async def delete_user(
+        self,
+        email,
+    ) -> None:
+        return None
+
+
 def _create_test_app() -> FastAPI:
     return create_http_app(
         settings=load_settings(),
         healthz_input_port=_ReadyHealthzInputPortStub(),
+        user_input_port=_UserInputPortStub(),
     )
 
 
@@ -63,9 +148,37 @@ async def test_openapi_endpoint_exposes_expected_metadata():
 
     assert app.docs_url is None
     assert response.status_code == 200
-    assert response.json()["info"]["title"] == app.title
-    assert response.json()["info"]["version"] == app.version
-    assert any(tag["name"] == "HealthZ" for tag in response.json()["tags"])
+    openapi_schema = response.json()
+
+    assert openapi_schema["info"]["title"] == app.title
+    assert openapi_schema["info"]["version"] == app.version
+    assert any(tag["name"] == "HealthZ" for tag in openapi_schema["tags"])
+    assert any(tag["name"] == "User" for tag in openapi_schema["tags"])
+
+    user_collection_path = openapi_schema["paths"]["/user"]
+
+    assert "post" in user_collection_path
+    assert "get" in user_collection_path
+    assert "put" in user_collection_path
+    assert "delete" in user_collection_path
+    assert "email" in {
+        parameter["name"] for parameter in user_collection_path["get"]["parameters"]
+    }
+    assert "current_email" in {
+        parameter["name"] for parameter in user_collection_path["put"]["parameters"]
+    }
+    assert "email" in {
+        parameter["name"] for parameter in user_collection_path["delete"]["parameters"]
+    }
+    assert "200" in user_collection_path["get"]["responses"]
+    assert "404" in user_collection_path["get"]["responses"]
+    assert "201" in user_collection_path["post"]["responses"]
+    assert "409" in user_collection_path["post"]["responses"]
+    assert "200" in user_collection_path["put"]["responses"]
+    assert "404" in user_collection_path["put"]["responses"]
+    assert "409" in user_collection_path["put"]["responses"]
+    assert "204" in user_collection_path["delete"]["responses"]
+    assert "404" in user_collection_path["delete"]["responses"]
 
 
 @pytest.mark.anyio
