@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.core.ports.output import UnitOfWorkOutputPort
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
 from src.core.ports.output.user_output_port import UserOutputPort
-from src.infra.postgres.user import SQLAlchemyUserOutputAdapter
+from src.infra.postgres.aggregates.user import SQLAlchemyUserOutputAdapter
 
 
 class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):

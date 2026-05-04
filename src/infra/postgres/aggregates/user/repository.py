@@ -15,7 +15,7 @@ from src.core.ports.output.user_output_port import (
     UserOutputPort,
 )
 
-from ..integrity import is_unique_violation
+from ...integrity import is_unique_violation
 from .models import USER_EMAIL_UNIQUE_CONSTRAINT_NAME, UserRecord
 
 

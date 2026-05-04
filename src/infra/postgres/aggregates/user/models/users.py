@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import Date, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ...base import PostgresPersistedRecordMixin, mapper_registry
+from ....base import PostgresPersistedRecordMixin, mapper_registry
 
 USER_EMAIL_UNIQUE_CONSTRAINT_NAME = "uq_users_email"
 
