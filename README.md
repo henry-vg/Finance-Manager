@@ -28,7 +28,7 @@ pip install -r docker/dev/requirements.txt
 docker compose -f docker/dev/docker-compose.yml up -d postgres
 docker compose -f docker/dev/docker-compose.yml ps postgres  # wait until healthy
 CFG_POSTGRES_HOST=localhost alembic upgrade head
-CFG_POSTGRES_HOST=localhost uvicorn src.infra.main:create_app --factory --reload --reload-dir=src
+CFG_POSTGRES_HOST=postgres uvicorn src.infra.main:create_app --host 0.0.0.0 --factory --reload --reload-dir=src
 ```
 
 
@@ -87,8 +87,31 @@ Finance-Manager
 
 # TODOs
 
-- adicionar URIs relevantes para 'type' nas respostas que seguem o padrão RFC-9457
+## FEITO
 
+- Renomear use_cases para usecases em todos os lugares da aplicação, inclusive pastas, arquivos e funções/variáveis/classes
+- Adicionar created_at e updated_at na tabela user
+- Faça um ApiSchemaBase para todos os schemas HTTP, e nela a gente formata os datetimes do jeito que quisermos, de forma centralizada; sempre o formato deve ser no tipo "2026-05-03T17:35:18.123Z"
+- Adicionar description e responses nas rotas de users
+- Fazer get user by email ao invés de get user by id (sendo assim, o id pode ser incremental no banco, visto que é id interno - ou adotamos a prática de fazer uuid sempre?)
+
+## PENDENTE
+
+- Como organizar 'infra.postgres' da melhor forma? Devemos separar tabelas em pastas? Ou separar ADAPTERS em pastas (para incluir o health)? A dúvida surge pela cardinalidade diferente de base e runtime com o resto dos arquivos.
+- Agora precisamos lidar com ciclo de trabalho transacional do banco de dados (commit/rollback/refresh) da melhor forma, porque no nosso repositor já está duplicando as coisas, como já vimos; faça um plano para resolvermos isso, promovendo para uma abstração explícita de unit of work, definida como port no core e implementada na infra.
+---
+- Melhor salvar "scrypt$n=16384$r=8$p=1$salt$hash" ao invés de "scrypt$salt$hash" nas senhas; é bom definir dklen explicitamente; Adicionar método de verificação de hashes
+---
+- Adicionar pagination central
+- Adicionar list users
+- Atualizar documentação sobre make
+---
+- Verificar testes e implementações até aqui
+- Separar e fazer commits
+
+## DEPOIS
+
+- Adicionar URIs relevantes para 'type' nas respostas que seguem o padrão RFC-9457
 
 # Finance Manager Notes
 
