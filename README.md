@@ -23,10 +23,10 @@ Transactional work is coordinated explicitly through a Unit of Work:
 
 Postgres persistence follows an aggregate-oriented organization:
 
-- `src/infra/postgres/<aggregate>/` names the aggregate persistence module, not a physical table.
-- aggregate modules stay singular when they represent a singular domain concept, for example `src/infra/postgres/user/`.
-- SQLAlchemy mappings for physical tables live under `src/infra/postgres/<aggregate>/models/`.
-- model files are named after the physical table, for example `src/infra/postgres/user/models/users.py` for the `users` table.
+- `src/infra/postgres/aggregates/<aggregate>/` names the aggregate persistence module, not a physical table.
+- aggregate modules stay singular when they represent a singular domain concept, for example `src/infra/postgres/aggregates/user/`.
+- SQLAlchemy mappings for physical tables live under `src/infra/postgres/aggregates/<aggregate>/models/`.
+- model files are named after the physical table, for example `src/infra/postgres/aggregates/user/models/users.py` for the `users` table.
 - one repository may depend on multiple table models; repository boundaries do not need to match table boundaries.
 - shared Postgres-only plumbing, such as integrity-error inspection, belongs in `src/infra/postgres/` and not inside a single aggregate module.
 
@@ -45,6 +45,59 @@ When adding a new aggregate that must participate in the same transactional boun
 - expose it through the active unit of work instead of opening a separate session in the use case.
 
 The architectural boundaries are enforced by `pytestarch` tests in `tests/architecture`.
+
+
+## Engineering Conventions
+
+The codebase prefers explicit, boring names over clever indirection. The main goal is that a reader can identify the architectural role of a type or module from its name alone.
+
+### Naming
+
+- Domain concepts use singular names, for example `User`, `NewUser`, `UserChanges` and `src/core/domain/user.py`.
+- Use cases use the `UseCase` suffix and live in `src/core/usecases/`, for example `UserUseCase` and `HealthzUseCase`.
+- Core contracts use the `InputPort` and `OutputPort` suffixes and live in `src/core/ports/`.
+- Infrastructure concretes include the technology in the name when that matters, for example `SQLAlchemyPostgresUnitOfWork`, `SQLAlchemyUserOutputAdapter` and `ScryptPasswordHasher`.
+- SQLAlchemy table mappings use the `Record` suffix, for example `UserRecord`.
+- Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
+- Exceptions should communicate the layer they belong to. Domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
+- Prefer f-strings over `.format()` for string interpolation.
+
+### Layer Responsibilities
+
+- `src/core/domain/` contains technology-agnostic business structures and domain errors. It must not know FastAPI, SQLAlchemy, Postgres, Scrypt or any other framework detail.
+- `src/core/ports/` defines the contracts the core depends on. Ports are owned by the core, even when infra implements them.
+- `src/core/usecases/` orchestrates business flows. A use case coordinates ports, enforces application rules, translates technical output-port errors into domain/application errors and decides transactional boundaries through the Unit of Work port.
+- `src/adapters/input/` translates framework inputs into core calls and translates core outputs/errors into transport-specific responses. In HTTP routes, this means building request DTOs, calling an input port and mapping domain errors to `HTTPException`.
+- `src/adapters/output/` is reserved for driven adapters that sit around the core contract when a dedicated adapter layer is useful.
+- `src/infra/` owns concrete technologies, runtime wiring and operational concerns. FastAPI app assembly, Postgres sessions, SQLAlchemy repositories, logging and security implementations belong here.
+- `src/infra/bootstrap.py` is the composition root. It wires concrete infra implementations into core use cases and exposes only the assembled application dependencies.
+
+### Transaction and Persistence Rules
+
+- The core does not open database sessions directly. It asks for a `UnitOfWorkOutputPortFactory` and works through the repositories exposed by the active unit of work.
+- The concrete Unit of Work lives in infra and is technology-specific. The core sees only the port.
+- Repositories are session-bound. They may `flush()` and `refresh()` entities, but they do not `commit()` or `rollback()` transactions.
+- Aggregates that participate in the same transaction must be exposed explicitly on both the core `UnitOfWorkOutputPort` and the concrete `SQLAlchemyPostgresUnitOfWork`.
+- Shared Postgres infrastructure stays at the top of `src/infra/postgres/`; aggregate-specific persistence stays under `src/infra/postgres/aggregates/`.
+- `PostgresPersistedRecordMixin` centralizes cross-table persisted fields such as `id`, `created_at`, `updated_at`, `is_deleted` and `deleted_at`.
+- Audit timestamps and `deleted_at` are database-owned. The application signals state changes; the database is responsible for writing the authoritative timestamps.
+- Soft-deleted rows are invisible to normal reads and updates. Hard delete must be an explicit opt-in behavior when the API or use case requires physical removal.
+- Constraint names should be stable and explicit when they carry business meaning, such as the unique email constraint on `users`.
+
+### API and Mapping Rules
+
+- HTTP routes should depend on input ports, not concrete use cases.
+- API schemas and responses should expose the transport contract, not persistence internals. Password fields, password hashes and internal persistence details must not leak to responses.
+- Route handlers should stay thin: validate/parse input, call the input port, translate known domain errors, and map the result to the response schema.
+- Small explicit mapper functions such as `_to_user_response(...)` and `_to_domain_user(...)` are preferred over implicit magic conversions.
+- Timestamps exposed by the API must be serialized in UTC using the centralized API schema conventions.
+
+### Testing Rules
+
+- Unit tests should mirror the source boundary they protect.
+- Integration tests should validate real collaboration between components, especially HTTP flows and Postgres persistence behavior.
+- Fixed-response test doubles should use the `Stub` suffix.
+- Architectural rules that must remain true across the repository belong in `tests/architecture/`.
 
 
 ## How To Run Locally
@@ -112,10 +165,11 @@ Finance-Manager
 │       └── postgres                 # Postgres runtime, shared helpers and aggregate persistence modules
 │           ├── integrity.py         # Shared Postgres integrity-error inspection helpers
 │           ├── unit_of_work.py      # Transaction boundary wiring for aggregate repositories
-│           └── user                 # Aggregate-oriented persistence module for User
-│               ├── repository.py    # SQLAlchemy implementation of the user output port
-│               └── models
-│                   └── users.py     # SQLAlchemy mapping for the physical users table
+│           └── aggregates
+│               └── user             # Aggregate-oriented persistence module for User
+│                   ├── repository.py # SQLAlchemy implementation of the user output port
+│                   └── models
+│                       └── users.py # SQLAlchemy mapping for the physical users table
 └── tests                            # Automated tests
     ├── architecture                 # Architectural boundary enforcement
     ├── integration                  # Integration tests (real components working together)
