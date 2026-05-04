@@ -19,5 +19,6 @@ def create_app() -> FastAPI:
     return create_http_app(
         settings=container.settings,
         healthz_input_port=container.healthz_input_port,
+        user_input_port=container.user_input_port,
         lifespan=lifespan,
     )

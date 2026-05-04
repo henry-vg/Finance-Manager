@@ -3,8 +3,10 @@ from fastapi import APIRouter
 from src.adapters.input.api.routes import (
     docs_route,
     healthz_route,
+    user_route,
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.user_input_port import UserInputPort
 
 
 def create_api_router(
@@ -13,6 +15,7 @@ def create_api_router(
     docs_dark_mode: bool,
     openapi_url: str,
     healthz_input_port: HealthzInputPort,
+    user_input_port: UserInputPort,
 ) -> APIRouter:
     api_router = APIRouter()
 
@@ -29,6 +32,12 @@ def create_api_router(
     api_router.include_router(
         router=healthz_route.create_router(
             healthz_input_port=healthz_input_port,
+        ),
+    )
+
+    api_router.include_router(
+        router=user_route.create_router(
+            user_input_port=user_input_port,
         ),
     )
 

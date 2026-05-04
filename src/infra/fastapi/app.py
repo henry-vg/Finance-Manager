@@ -8,6 +8,7 @@ from src.adapters.input.api.exception_handlers import add_exception_handlers
 from src.adapters.input.api.middlewares import add_middlewares
 from src.adapters.input.api.router import create_api_router
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.user_input_port import UserInputPort
 from src.infra.fastapi.tags import openapi_tags
 from src.infra.logging import setup_logging
 from src.infra.settings import Settings
@@ -24,6 +25,7 @@ def create_http_app(
     *,
     settings: Settings,
     healthz_input_port: HealthzInputPort,
+    user_input_port: UserInputPort,
     lifespan=_default_lifespan,
 ) -> FastAPI:
     setup_logging(settings=settings)
@@ -56,6 +58,7 @@ def create_http_app(
         docs_dark_mode=settings.fastapi.docs_dark_mode,
         openapi_url=settings.fastapi.openapi_url,
         healthz_input_port=healthz_input_port,
+        user_input_port=user_input_port,
     )
 
     app.include_router(router=router)

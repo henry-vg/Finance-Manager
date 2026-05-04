@@ -8,4 +8,12 @@ openapi_tags = [
             "verification and readiness checks for dependency validation."
         ),
     },
+    {
+        "name": "User",
+        "description": (
+            "User management endpoints for creating, retrieving, updating, "
+            "and deleting users persisted in Postgres. Responses never expose "
+            "password data and timestamps are returned in normalized UTC format."
+        ),
+    },
 ]
