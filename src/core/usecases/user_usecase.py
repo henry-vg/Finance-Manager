@@ -114,16 +114,30 @@ class UserUseCase(UserInputPort):
     async def delete_user(
         self,
         email: str,
+        hard_delete: bool = False,
     ) -> None:
         async with self._unit_of_work_output_port_factory() as unit_of_work:
-            current_user = await unit_of_work.users.get_user_by_email(
-                email=email,
-            )
+            if hard_delete:
+                current_user = (
+                    await unit_of_work.users.get_user_by_email_including_deleted(
+                        email=email,
+                    )
+                )
+            else:
+                current_user = await unit_of_work.users.get_user_by_email(
+                    email=email,
+                )
 
             if current_user is None:
                 raise UserNotFoundError()
 
-            await unit_of_work.users.delete_user(
-                user_id=current_user.id,
-            )
+            if hard_delete:
+                await unit_of_work.users.hard_delete_user(
+                    user_id=current_user.id,
+                )
+            else:
+                await unit_of_work.users.soft_delete_user(
+                    user_id=current_user.id,
+                )
+
             await unit_of_work.commit()

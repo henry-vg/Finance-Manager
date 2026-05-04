@@ -64,12 +64,17 @@ class _UserInputPortStub(UserInputPort):
         self,
     ) -> None:
         self.users_by_email: dict[str, User] = {}
+        self.soft_deleted_emails: set[str] = set()
+        self.delete_calls: list[tuple[str, bool]] = []
         self._next_user_id = 1
 
     async def get_user(
         self,
         email: str,
     ) -> User:
+        if email in self.soft_deleted_emails:
+            raise UserNotFoundError()
+
         user = self.users_by_email.get(email)
 
         if user is None:
@@ -123,6 +128,9 @@ class _UserInputPortStub(UserInputPort):
         current_email: str,
         data: UpdateUserData,
     ) -> User:
+        if current_email in self.soft_deleted_emails:
+            raise UserNotFoundError()
+
         current_user = self.users_by_email.get(current_email)
 
         if current_user is None:
@@ -161,11 +169,26 @@ class _UserInputPortStub(UserInputPort):
     async def delete_user(
         self,
         email: str,
+        hard_delete: bool = False,
     ) -> None:
+        self.delete_calls.append((email, hard_delete))
+
+        if email in self.soft_deleted_emails:
+            if hard_delete:
+                self.soft_deleted_emails.remove(email)
+                self.users_by_email.pop(email, None)
+                return
+
+            raise UserNotFoundError()
+
         if email not in self.users_by_email:
             raise UserNotFoundError()
 
-        del self.users_by_email[email]
+        if hard_delete:
+            del self.users_by_email[email]
+            return
+
+        self.soft_deleted_emails.add(email)
 
 
 def _create_test_app(
@@ -180,7 +203,8 @@ def _create_test_app(
 
 @pytest.mark.anyio
 async def test_user_crud_flow_through_http_app() -> None:
-    app = _create_test_app(_UserInputPortStub())
+    user_input_port_stub = _UserInputPortStub()
+    app = _create_test_app(user_input_port_stub)
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -244,6 +268,41 @@ async def test_user_crud_flow_through_http_app() -> None:
         "updated_at": "2026-05-03T13:45:30.456Z",
     }
     assert delete_response.status_code == 204
+    assert user_input_port_stub.delete_calls == [("grace@example.com", False)]
+    assert missing_response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_hard_delete_query_param_removes_user_through_http_app() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    app = _create_test_app(user_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        delete_response = await client.delete(
+            "/user",
+            params={
+                "email": "ada@example.com",
+                "hard_delete": "true",
+            },
+        )
+        missing_response = await client.get(
+            "/user",
+            params={"email": "ada@example.com"},
+        )
+
+    assert delete_response.status_code == 204
+    assert user_input_port_stub.delete_calls == [("ada@example.com", True)]
     assert missing_response.status_code == 404
 
 

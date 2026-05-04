@@ -27,4 +27,5 @@ class UserInputPort(Protocol):
     async def delete_user(
         self,
         email: str,
+        hard_delete: bool = False,
     ) -> None: ...

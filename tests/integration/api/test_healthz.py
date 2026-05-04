@@ -99,7 +99,10 @@ class _UserInputPortStub(UserInputPort):
     async def delete_user(
         self,
         email,
+        hard_delete: bool = False,
     ) -> None:
+        del email
+        del hard_delete
         return None
 
 

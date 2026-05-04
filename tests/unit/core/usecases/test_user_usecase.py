@@ -78,7 +78,8 @@ class _UserOutputPortStub(UserOutputPort):
         self,
     ) -> None:
         self.users_by_id: dict[int, User] = {}
-        self.deleted_user_ids: list[int] = []
+        self.soft_deleted_user_ids: list[int] = []
+        self.hard_deleted_user_ids: list[int] = []
         self.created_users: list[NewUser] = []
         self.updated_users: list[tuple[int, UserChanges]] = []
         self.create_error: Exception | None = None
@@ -86,6 +87,19 @@ class _UserOutputPortStub(UserOutputPort):
         self._next_user_id = 1
 
     async def get_user_by_email(
+        self,
+        email: str,
+    ) -> User | None:
+        for user_id, user in self.users_by_id.items():
+            if user_id in self.soft_deleted_user_ids:
+                continue
+
+            if user.email == email:
+                return user
+
+        return None
+
+    async def get_user_by_email_including_deleted(
         self,
         email: str,
     ) -> User | None:
@@ -170,11 +184,25 @@ class _UserOutputPortStub(UserOutputPort):
         self.users_by_id[user_id] = updated_user
         return updated_user
 
-    async def delete_user(
+    async def soft_delete_user(
         self,
         user_id: int,
     ) -> None:
-        self.deleted_user_ids.append(user_id)
+        if user_id not in self.users_by_id:
+            raise UserNotFoundError()
+
+        self.soft_deleted_user_ids.append(user_id)
+
+    async def hard_delete_user(
+        self,
+        user_id: int,
+    ) -> None:
+        if user_id not in self.users_by_id:
+            raise UserNotFoundError()
+
+        self.hard_deleted_user_ids.append(user_id)
+        while user_id in self.soft_deleted_user_ids:
+            self.soft_deleted_user_ids.remove(user_id)
         self.users_by_id.pop(user_id, None)
 
 
@@ -530,7 +558,7 @@ async def test_update_user_translates_output_port_conflict_to_domain_error() -> 
 
 
 @pytest.mark.anyio
-async def test_delete_user_removes_existing_user() -> None:
+async def test_delete_user_soft_deletes_existing_user_by_default() -> None:
     user_output_port_stub = _UserOutputPortStub()
     user_output_port_stub.users_by_id[1] = User(
         id=1,
@@ -550,8 +578,9 @@ async def test_delete_user_removes_existing_user() -> None:
         email="ada@example.com",
     )
 
-    assert user_output_port_stub.deleted_user_ids == [1]
-    assert 1 not in user_output_port_stub.users_by_id
+    assert user_output_port_stub.soft_deleted_user_ids == [1]
+    assert user_output_port_stub.hard_deleted_user_ids == []
+    assert 1 in user_output_port_stub.users_by_id
     unit_of_work_output_port = _get_created_unit_of_work_output_port(
         unit_of_work_output_port_factory,
     )
@@ -574,3 +603,35 @@ async def test_delete_user_raises_when_user_does_not_exist() -> None:
         unit_of_work_output_port_factory,
     )
     assert unit_of_work_output_port.rollback_calls == 1
+
+
+@pytest.mark.anyio
+async def test_delete_user_hard_deletes_soft_deleted_user_when_requested() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.users_by_id[1] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    user_output_port_stub.soft_deleted_user_ids.append(1)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
+
+    await use_case.delete_user(
+        email="ada@example.com",
+        hard_delete=True,
+    )
+
+    assert user_output_port_stub.soft_deleted_user_ids == []
+    assert user_output_port_stub.hard_deleted_user_ids == [1]
+    assert 1 not in user_output_port_stub.users_by_id
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 1

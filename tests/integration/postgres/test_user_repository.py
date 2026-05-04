@@ -12,6 +12,7 @@ from src.core.ports.output.user_output_port import UserEmailConflictOutputPortEr
 from src.infra.postgres import (
     SQLAlchemyPostgresUnitOfWorkFactory,
     SQLAlchemyUserOutputAdapter,
+    UserRecord,
     create_postgres_engine,
     create_postgres_session_factory,
     dispose_postgres_engine,
@@ -76,6 +77,11 @@ async def _prepare_database(engine: AsyncEngine) -> None:
                 RETURNS TRIGGER AS $$
                 BEGIN
                     NEW.updated_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
+
+                    IF NEW.is_deleted IS TRUE AND OLD.is_deleted IS FALSE THEN
+                        NEW.deleted_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
+                    END IF;
+
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql;
@@ -126,7 +132,7 @@ async def postgres_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSe
 
 
 @pytest.mark.anyio
-async def test_create_user_generates_id_and_timestamps(
+async def test_create_user_generates_id_and_timestamps_with_active_defaults(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -136,11 +142,15 @@ async def test_create_user_generates_id_and_timestamps(
             new_user=_build_new_user(),
         )
         await session.commit()
+        user_record = await session.get(UserRecord, created_user.id)
 
     assert created_user.id > 0
     assert created_user.created_at is not None
     assert created_user.updated_at is not None
     assert created_user.updated_at == created_user.created_at
+    assert user_record is not None
+    assert user_record.is_deleted is False
+    assert user_record.deleted_at is None
 
 
 @pytest.mark.anyio
@@ -182,6 +192,108 @@ async def test_create_user_raises_on_email_conflict(
 
         await repository.create_user(
             new_user=_build_new_user(),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        with pytest.raises(UserEmailConflictOutputPortError):
+            await repository.create_user(
+                new_user=_build_new_user(
+                    first_name="Grace",
+                    last_name="Hopper",
+                    password_hash="hashed::another-password",
+                    birth_date=date(1906, 12, 9),
+                ),
+            )
+
+
+@pytest.mark.anyio
+async def test_soft_delete_user_hides_user_and_sets_deleted_at(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        created_user = await repository.create_user(
+            new_user=_build_new_user(),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        await session.execute(text("SELECT pg_sleep(0.01)"))
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        await repository.soft_delete_user(
+            user_id=created_user.id,
+        )
+        await session.commit()
+
+        deleted_user = await repository.get_user_by_email("ada@example.com")
+        included_user = await repository.get_user_by_email_including_deleted(
+            "ada@example.com",
+        )
+        user_record = await session.get(UserRecord, created_user.id)
+
+    assert deleted_user is None
+    assert included_user is not None
+    assert user_record is not None
+    assert user_record.is_deleted is True
+    assert user_record.deleted_at is not None
+    assert user_record.deleted_at >= user_record.updated_at
+
+
+@pytest.mark.anyio
+async def test_hard_delete_user_removes_soft_deleted_row(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        created_user = await repository.create_user(
+            new_user=_build_new_user(),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        await repository.soft_delete_user(
+            user_id=created_user.id,
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        await repository.hard_delete_user(
+            user_id=created_user.id,
+        )
+        await session.commit()
+
+        user_record = await session.get(UserRecord, created_user.id)
+        included_user = await repository.get_user_by_email_including_deleted(
+            "ada@example.com",
+        )
+
+    assert user_record is None
+    assert included_user is None
+
+
+@pytest.mark.anyio
+async def test_create_user_still_raises_on_email_conflict_after_soft_delete(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        created_user = await repository.create_user(
+            new_user=_build_new_user(),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+        await repository.soft_delete_user(
+            user_id=created_user.id,
         )
         await session.commit()
 

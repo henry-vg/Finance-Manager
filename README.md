@@ -19,6 +19,7 @@ Transactional work is coordinated explicitly through a Unit of Work:
 - the Postgres implementation opens one async session per use-case execution.
 - the infrastructure exposes the Postgres Unit of Work factory through the composition root; the concrete Unit of Work is not part of the public wiring surface.
 - repositories are session-bound and may `flush`/`refresh`, but they do not `commit` or `rollback`.
+- aggregates that participate in the same transactional boundary must be added explicitly to both `UnitOfWorkOutputPort` and `SQLAlchemyPostgresUnitOfWork`.
 
 Postgres persistence follows an aggregate-oriented organization:
 
@@ -28,6 +29,14 @@ Postgres persistence follows an aggregate-oriented organization:
 - model files are named after the physical table, for example `src/infra/postgres/user/models/users.py` for the `users` table.
 - one repository may depend on multiple table models; repository boundaries do not need to match table boundaries.
 - shared Postgres-only plumbing, such as integrity-error inspection, belongs in `src/infra/postgres/` and not inside a single aggregate module.
+
+Postgres audit and deletion semantics are database-owned:
+
+- `PostgresPersistedRecordMixin` centralizes `id`, `created_at`, `updated_at`, `is_deleted` and `deleted_at` for persisted records.
+- `updated_at` and `deleted_at` are set by database trigger logic, not by application timestamps.
+- the default `DELETE /user` behavior is a soft delete; `hard_delete=true` is required for physical row removal.
+- soft-deleted users are invisible to normal `GET`, `UPDATE` and default `DELETE` flows.
+- soft delete does not release the unique `email`; a soft-deleted user still blocks email reuse.
 
 When adding a new aggregate that must participate in the same transactional boundary:
 

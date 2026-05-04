@@ -112,7 +112,10 @@ class _UserInputPortStub(UserInputPort):
     async def delete_user(
         self,
         email,
+        hard_delete: bool = False,
     ) -> None:
+        del email
+        del hard_delete
         return None
 
 
@@ -168,6 +171,9 @@ async def test_openapi_endpoint_exposes_expected_metadata():
         parameter["name"] for parameter in user_collection_path["put"]["parameters"]
     }
     assert "email" in {
+        parameter["name"] for parameter in user_collection_path["delete"]["parameters"]
+    }
+    assert "hard_delete" in {
         parameter["name"] for parameter in user_collection_path["delete"]["parameters"]
     }
     assert "200" in user_collection_path["get"]["responses"]

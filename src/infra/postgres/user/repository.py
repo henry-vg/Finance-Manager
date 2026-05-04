@@ -1,3 +1,5 @@
+from typing import cast
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,8 +45,24 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         self,
         email,
     ) -> User | None:
-        user_record = await self._session.scalar(
-            select(UserRecord).where(UserRecord.email == email),
+        user_record = await self._get_user_record_by_email(
+            email=email,
+        )
+
+        if user_record is None:
+            return None
+
+        return _to_domain_user(
+            user_record=user_record,
+        )
+
+    async def get_user_by_email_including_deleted(
+        self,
+        email: str,
+    ) -> User | None:
+        user_record = await self._get_user_record_by_email(
+            email=email,
+            include_deleted=True,
         )
 
         if user_record is None:
@@ -89,9 +107,8 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         user_id: int,
         changes: UserChanges,
     ) -> User:
-        user_record = await self._session.get(
-            UserRecord,
-            user_id,
+        user_record = await self._get_user_record_by_id(
+            user_id=user_id,
         )
 
         if user_record is None:
@@ -120,13 +137,28 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
             user_record=user_record,
         )
 
-    async def delete_user(
+    async def soft_delete_user(
         self,
-        user_id,
+        user_id: int,
     ) -> None:
-        user_record = await self._session.get(
-            UserRecord,
-            user_id,
+        user_record = await self._get_user_record_by_id(
+            user_id=user_id,
+        )
+
+        if user_record is None:
+            raise UserNotFoundError()
+
+        user_record.is_deleted = True
+
+        await self._session.flush()
+
+    async def hard_delete_user(
+        self,
+        user_id: int,
+    ) -> None:
+        user_record = await self._get_user_record_by_id(
+            user_id=user_id,
+            include_deleted=True,
         )
 
         if user_record is None:
@@ -134,3 +166,29 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
 
         await self._session.delete(user_record)
         await self._session.flush()
+
+    async def _get_user_record_by_email(
+        self,
+        *,
+        email: str,
+        include_deleted: bool = False,
+    ) -> UserRecord | None:
+        statement = select(UserRecord).where(UserRecord.email == email)
+
+        if not include_deleted:
+            statement = statement.where(UserRecord.is_deleted.is_(False))
+
+        return cast(UserRecord | None, await self._session.scalar(statement))
+
+    async def _get_user_record_by_id(
+        self,
+        *,
+        user_id: int,
+        include_deleted: bool = False,
+    ) -> UserRecord | None:
+        statement = select(UserRecord).where(UserRecord.id == user_id)
+
+        if not include_deleted:
+            statement = statement.where(UserRecord.is_deleted.is_(False))
+
+        return cast(UserRecord | None, await self._session.scalar(statement))

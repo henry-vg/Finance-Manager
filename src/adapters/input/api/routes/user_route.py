@@ -195,11 +195,16 @@ def create_router(
         status_code=status.HTTP_204_NO_CONTENT,
         description=(
             "Endpoint used to delete an existing user by its email address. "
-            "On success, the operation returns no response body."
+            "By default the operation performs a soft delete; when "
+            "`hard_delete=true` is provided, the persisted row is removed "
+            "physically. On success, the operation returns no response body."
         ),
         responses={
             204: {
-                "description": "The user was deleted successfully.",
+                "description": (
+                    "The user was deleted successfully, either logically or "
+                    "physically depending on the hard_delete query parameter."
+                ),
             },
             404: {
                 "description": "No user exists for the provided email address.",
@@ -215,10 +220,18 @@ def create_router(
             ...,
             description="Email address of the user to delete.",
         ),
+        hard_delete: bool = Query(
+            False,
+            description=(
+                "When true, removes the row physically. When false, performs "
+                "a soft delete. Defaults to false."
+            ),
+        ),
     ) -> Response:
         try:
             await user_input_port.delete_user(
                 email=email,
+                hard_delete=hard_delete,
             )
         except UserNotFoundError as exc:
             raise HTTPException(
