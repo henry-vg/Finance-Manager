@@ -190,16 +190,7 @@ Finance-Manager
 
 # TODOs
 
-## FEITO
-
-- Renomear use_cases para usecases em todos os lugares da aplicação, inclusive pastas, arquivos e funções/variáveis/classes
-- Adicionar created_at e updated_at na tabela user
-- Faça um ApiSchemaBase para todos os schemas HTTP, e nela a gente formata os datetimes do jeito que quisermos, de forma centralizada; sempre o formato deve ser no tipo "2026-05-03T17:35:18.123Z"
-- Adicionar description e responses nas rotas de users
-- Fazer get user by email ao invés de get user by id (sendo assim, o id pode ser incremental no banco, visto que é id interno - ou adotamos a prática de fazer uuid sempre?)
-- Promover o ciclo transacional para uma abstração explícita de Unit of Work, definida como port no core e implementada na infra
-
-## PENDENTE
+## AGORA
 
 - Adicionar pagination central
 - Adicionar list users
