@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel
+from .base import ApiSchemaBase
 
 
 class HealthzStatus(StrEnum):
@@ -8,15 +8,15 @@ class HealthzStatus(StrEnum):
     NOT_OK = "not_ok"
 
 
-class HealthzLivenessResponse(BaseModel):
+class GetHealthzLivenessResponse(ApiSchemaBase):
     status: HealthzStatus
 
 
-class HealthzReadinessDependencies(BaseModel):
+class GetHealthzReadinessDependencies(ApiSchemaBase):
     api: HealthzStatus
     database: HealthzStatus
 
 
-class HealthzReadinessResponse(BaseModel):
+class GetHealthzReadinessResponse(ApiSchemaBase):
     status: HealthzStatus
-    dependencies: HealthzReadinessDependencies
+    dependencies: GetHealthzReadinessDependencies

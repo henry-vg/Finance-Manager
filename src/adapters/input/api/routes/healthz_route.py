@@ -8,9 +8,9 @@ from src.core.domain.healthz import HealthzStatus as DomainHealthzStatus
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 
 from ..schemas.healthz_schema import (
-    HealthzLivenessResponse,
-    HealthzReadinessDependencies,
-    HealthzReadinessResponse,
+    GetHealthzLivenessResponse,
+    GetHealthzReadinessDependencies,
+    GetHealthzReadinessResponse,
     HealthzStatus,
 )
 
@@ -25,8 +25,8 @@ def create_router(
 
     @router.get(
         path="/liveness",
-        response_model=HealthzLivenessResponse,
-        status_code=200,
+        response_model=GetHealthzLivenessResponse,
+        status_code=status.HTTP_200_OK,
         description=(
             "Endpoint used to verify that the application process is running "
             "and responsive. Liveness checks do not validate external dependencies."
@@ -38,17 +38,17 @@ def create_router(
         },
         summary="Healthz Liveness",
     )
-    async def get_healthz_liveness() -> HealthzLivenessResponse:
+    async def get_healthz_liveness() -> GetHealthzLivenessResponse:
         result = await healthz_input_port.get_healthz_liveness()
 
-        return HealthzLivenessResponse(
+        return GetHealthzLivenessResponse(
             status=HealthzStatus(result.status.value),
         )
 
     @router.get(
         path="/readiness",
-        response_model=HealthzReadinessResponse,
-        status_code=200,
+        response_model=GetHealthzReadinessResponse,
+        status_code=status.HTTP_200_OK,
         description=(
             "Endpoint used to determine whether the application is ready "
             "to receive traffic. "
@@ -67,7 +67,7 @@ def create_router(
         },
         summary="Healthz Readiness",
     )
-    async def get_healthz_readiness(response: Response) -> HealthzReadinessResponse:
+    async def get_healthz_readiness(response: Response) -> GetHealthzReadinessResponse:
         result = await healthz_input_port.get_healthz_readiness()
 
         response.status_code = (
@@ -76,9 +76,9 @@ def create_router(
             else status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
-        return HealthzReadinessResponse(
+        return GetHealthzReadinessResponse(
             status=HealthzStatus(result.status.value),
-            dependencies=HealthzReadinessDependencies(
+            dependencies=GetHealthzReadinessDependencies(
                 api=HealthzStatus(result.dependencies.api.value),
                 database=HealthzStatus(result.dependencies.database.value),
             ),
