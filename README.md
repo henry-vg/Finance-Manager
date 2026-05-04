@@ -61,6 +61,8 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
 - Exceptions should communicate the layer they belong to. Domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
 - Prefer f-strings over `.format()` for string interpolation.
+- Prefer `dataclass` for internal value carriers and simple in-process models with no boundary-validation responsibility.
+- Prefer inheriting from Pydantic `BaseModel` for boundary models, especially HTTP request/response schemas, because those types benefit from explicit validation, parsing and serialization behavior.
 
 ### Layer Responsibilities
 
@@ -91,6 +93,15 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Route handlers should stay thin: validate/parse input, call the input port, translate known domain errors, and map the result to the response schema.
 - Small explicit mapper functions such as `_to_user_response(...)` and `_to_domain_user(...)` are preferred over implicit magic conversions.
 - Timestamps exposed by the API must be serialized in UTC using the centralized API schema conventions.
+
+### Security and Hashing Rules
+
+- Password hashing is exposed to the core through `PasswordHasherOutputPort`; the core depends on the intent to hash and verify passwords, not on a concrete algorithm API.
+- The concrete implementation lives in infra and may use technology-specific naming, for example `ScryptPasswordHasher`.
+- Persisted password hashes must be self-describing. The current canonical format is `scrypt$n=16384$r=8$p=1$dklen=64$salt$hash`.
+- Hash parameters such as `n`, `r`, `p` and `dklen` must be explicit in both the implementation and the persisted payload.
+- Password verification must recompute the hash from the persisted parameters and compare using a timing-attack-resistant operation.
+- The legacy format `scrypt$salt$hash` is not supported.
 
 ### Testing Rules
 
@@ -190,8 +201,6 @@ Finance-Manager
 
 ## PENDENTE
 
-- Melhor salvar "scrypt$n=16384$r=8$p=1$salt$hash" ao invés de "scrypt$salt$hash" nas senhas; é bom definir dklen explicitamente; Adicionar método de verificação de hashes
----
 - Adicionar pagination central
 - Adicionar list users
 - Atualizar documentação sobre make
