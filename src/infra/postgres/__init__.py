@@ -1,3 +1,4 @@
+from .aggregates.user import SQLAlchemyUserOutputAdapter, UserRecord
 from .base import mapper_registry, postgres_metadata
 from .health import SQLAlchemyPostgresHealthAdapter
 from .runtime import (
@@ -7,7 +8,6 @@ from .runtime import (
     get_postgres_session,
 )
 from .unit_of_work import SQLAlchemyPostgresUnitOfWorkFactory
-from .aggregates.user import SQLAlchemyUserOutputAdapter, UserRecord
 
 __all__ = [
     "mapper_registry",
