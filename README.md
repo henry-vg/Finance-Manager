@@ -61,18 +61,22 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
 - Exceptions should communicate the layer they belong to. Domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
 - Prefer f-strings over `.format()` for string interpolation.
-- Prefer `dataclass` for internal value carriers and simple in-process models with no boundary-validation responsibility.
-- Prefer inheriting from Pydantic `BaseModel` for boundary models, especially HTTP request/response schemas, because those types benefit from explicit validation, parsing and serialization behavior.
+- Prefer `dataclass` for simple internal data carriers with little or no validation behavior.
+- Prefer inheriting from Pydantic `BaseModel` whenever a structure needs more robust validation, parsing or serialization behavior, even when the type is reused outside HTTP boundaries.
 
 ### Layer Responsibilities
 
 - `src/core/domain/` contains technology-agnostic business structures and domain errors. It must not know FastAPI, SQLAlchemy, Postgres, Scrypt or any other framework detail.
 - `src/core/ports/` defines the contracts the core depends on. Ports are owned by the core, even when infra implements them.
 - `src/core/usecases/` orchestrates business flows. A use case coordinates ports, enforces application rules, translates technical output-port errors into domain/application errors and decides transactional boundaries through the Unit of Work port.
+- `src/core/shared/` contains technology-agnostic primitives reused across multiple core slices but that do not belong to a specific domain concept, port contract or single use case.
+- `src/core/shared/` is the right place for cross-cutting application-level types such as pagination/listing primitives that must be reused by ports, use cases and adapters without becoming HTTP-specific or persistence-specific.
+- `src/core/shared/` should not become a generic dump for unrelated helpers. It should be used only for small, stable, cross-cutting building blocks with clear semantics and no framework dependency.
 - `src/adapters/input/` translates framework inputs into core calls and translates core outputs/errors into transport-specific responses. In HTTP routes, this means building request DTOs, calling an input port and mapping domain errors to `HTTPException`.
 - `src/adapters/output/` is reserved for driven adapters that sit around the core contract when a dedicated adapter layer is useful.
 - `src/infra/` owns concrete technologies, runtime wiring and operational concerns. FastAPI app assembly, Postgres sessions, SQLAlchemy repositories, logging and security implementations belong here.
 - `src/infra/bootstrap.py` is the composition root. It wires concrete infra implementations into core use cases and exposes only the assembled application dependencies.
+- Application configuration belongs in `src/infra/settings/`. Defaults, operational limits and environment-driven toggles should be centralized there instead of being duplicated as hardcoded constants across adapters, use cases or infrastructure modules.
 
 ### Transaction and Persistence Rules
 
@@ -93,6 +97,11 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Route handlers should stay thin: validate/parse input, call the input port, translate known domain errors, and map the result to the response schema.
 - Small explicit mapper functions such as `_to_user_response(...)` and `_to_domain_user(...)` are preferred over implicit magic conversions.
 - Timestamps exposed by the API must be serialized in UTC using the centralized API schema conventions.
+- Shared pagination follows the same split: `src/core/shared/listing.py` owns agnostic list types such as `ListQuery` and `Page[T]`, while the HTTP adapter owns transport-facing types such as `PageResponse[T]`.
+- The central HTTP pagination parser lives in the adapter layer and is responsible for translating query params into the core list query type.
+- The current central pagination contract supports only `offset` and `limit`; future `sort`, `filter` and `query` concerns must extend the same shared module instead of introducing route-specific pagination shapes.
+- The current HTTP defaults are `offset=0`, `limit=settings.fastapi.pagination_default_limit` and `limit<=settings.fastapi.pagination_max_limit`.
+- Paginated HTTP responses should include `items`, `offset`, `limit` and `total`.
 
 ### Security and Hashing Rules
 
@@ -171,6 +180,7 @@ Finance-Manager
 │   ├── core                         # Business core
 │   │   ├── domain                   # Entities, value objects and domain rules
 │   │   ├── ports                    # Core-owned contracts
+│   │   ├── shared                   # Stable, technology-agnostic primitives reused across core boundaries
 │   │   └── usecases                 # Use-case orchestration
 │   └── infra                        # Composition root and technical infrastructure
 │       └── postgres                 # Postgres runtime, shared helpers and aggregate persistence modules

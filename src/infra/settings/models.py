@@ -2,6 +2,7 @@ import os
 from enum import StrEnum
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -36,16 +37,16 @@ class LogSettings(BaseSettings):
     console_use_colors: bool
     console_use_json: bool
     console_show_extras: bool
-    console_extras_max_length: int
+    console_extras_max_length: int = Field(ge=0)
     file_enabled: bool
     file_level: LogLevel
     file_uvicorn_level: LogLevel
     file_path: str
     file_rotate: bool
-    file_rotate_max_bytes: int
-    file_rotate_backup_count: int
+    file_rotate_max_bytes: int = Field(gt=0)
+    file_rotate_backup_count: int = Field(ge=0)
     file_show_extras: bool
-    file_extras_max_length: int
+    file_extras_max_length: int = Field(ge=0)
     unhandled_exceptions: bool
 
 
@@ -64,7 +65,9 @@ class FastAPISettings(BaseSettings):
     docs_title: str
     docs_dark_mode: bool
     openapi_url: str
-    redoc_url: str
+    redoc_url: str | None
+    pagination_default_limit: int = Field(gt=0)
+    pagination_max_limit: int = Field(gt=0)
 
 
 class PostgresSettings(BaseSettings):
@@ -81,8 +84,8 @@ class PostgresSettings(BaseSettings):
     password: str
     database: str
     echo: bool
-    pool_size: int
-    max_overflow: int
+    pool_size: int = Field(ge=0)
+    max_overflow: int = Field(ge=0)
 
     @property
     def dsn(self) -> str:

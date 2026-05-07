@@ -23,6 +23,8 @@ def _set_required_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "CFG_FASTAPI_DOCS_DARK_MODE": "True",
         "CFG_FASTAPI_OPENAPI_URL": "/openapi.json",
         "CFG_FASTAPI_REDOC_URL": "",
+        "CFG_FASTAPI_PAGINATION_DEFAULT_LIMIT": "50",
+        "CFG_FASTAPI_PAGINATION_MAX_LIMIT": "500",
         "CFG_POSTGRES_HOST": "postgres",
         "CFG_POSTGRES_PORT": "5432",
         "CFG_POSTGRES_USER": "finance_manager",
@@ -69,6 +71,8 @@ def test_load_settings_uses_dev_env_file_by_default(monkeypatch: pytest.MonkeyPa
 
     assert settings.environment == Environment.DEV
     assert settings.fastapi.title == "Finance Manager API"
+    assert settings.fastapi.pagination_default_limit == 50
+    assert settings.fastapi.pagination_max_limit == 500
     assert settings.log.console_level.value == "DEBUG"
     assert settings.postgres.host == "postgres"
     assert settings.postgres.dsn == (
@@ -101,6 +105,8 @@ def test_load_settings_uses_process_environment_in_prd(
     assert settings.environment == Environment.PRD
     assert settings.fastapi.docs_title == "Docs - Finance Manager API"
     assert settings.fastapi.redoc_url == ""
+    assert settings.fastapi.pagination_default_limit == 50
+    assert settings.fastapi.pagination_max_limit == 500
     assert settings.log.file_rotate_max_bytes == 1048576
     assert isinstance(settings, Settings)
     assert isinstance(settings.log, LogSettings)

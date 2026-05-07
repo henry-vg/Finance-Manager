@@ -64,6 +64,8 @@ def _build_settings(
             docs_dark_mode=True,
             openapi_url="/openapi.json",
             redoc_url="",
+            pagination_default_limit=50,
+            pagination_max_limit=500,
         ),
     )
 
