@@ -1,6 +1,22 @@
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class SortDirection(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+class SortTerm(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
+
+    field: str = Field(min_length=1)
+    direction: SortDirection
 
 
 class ListQuery(BaseModel):
@@ -11,6 +27,7 @@ class ListQuery(BaseModel):
 
     offset: int = Field(ge=0)
     limit: int = Field(gt=0)
+    sort: tuple[SortTerm, ...] = Field(default_factory=tuple)
 
 
 class Page[ItemT](BaseModel):

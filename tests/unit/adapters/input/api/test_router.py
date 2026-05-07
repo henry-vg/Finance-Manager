@@ -2,7 +2,6 @@ from datetime import UTC, date, datetime
 
 from fastapi.routing import APIRoute
 
-from src.adapters.input.api.pagination import create_list_query_dependency
 from src.adapters.input.api.router import create_api_router
 from src.core.domain.healthz import (
     HealthzLiveness,
@@ -130,12 +129,10 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
         docs_title="Docs",
         docs_dark_mode=True,
         openapi_url="/openapi.json",
+        pagination_default_limit=50,
+        pagination_max_limit=500,
         healthz_input_port=_HealthyHealthzInputPortStub(),
         user_input_port=_UserInputPortStub(),
-        list_query_dependency=create_list_query_dependency(
-            default_limit=50,
-            max_limit=500,
-        ),
     )
 
     route_paths = {route.path for route in router.routes if isinstance(route, APIRoute)}

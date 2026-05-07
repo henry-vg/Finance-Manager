@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -9,15 +9,27 @@ from src.core.domain.user import (
     User,
     UserChanges,
     UserNotFoundError,
+    UserSortableField,
 )
 from src.core.ports.output.user_output_port import (
     UserEmailConflictOutputPortError,
     UserOutputPort,
 )
-from src.core.shared import ListQuery, Page
+from src.core.shared import ListQuery, Page, SortDirection
 
 from ...integrity import is_unique_violation
+from ...listing import build_order_clauses
 from .models import USER_EMAIL_UNIQUE_CONSTRAINT_NAME, UserRecord
+
+_USER_LIST_SORT_COLUMNS: dict[UserSortableField, Any] = {
+    UserSortableField.ID: UserRecord.id,
+    UserSortableField.FIRST_NAME: UserRecord.first_name,
+    UserSortableField.LAST_NAME: UserRecord.last_name,
+    UserSortableField.EMAIL: UserRecord.email,
+    UserSortableField.BIRTH_DATE: UserRecord.birth_date,
+    UserSortableField.CREATED_AT: UserRecord.created_at,
+    UserSortableField.UPDATED_AT: UserRecord.updated_at,
+}
 
 
 def _to_domain_user(
@@ -49,7 +61,15 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         statement = (
             select(UserRecord)
             .where(UserRecord.is_deleted.is_(False))
-            .order_by(UserRecord.id.asc())
+            .order_by(
+                *build_order_clauses(
+                    sort_terms=list_query.sort,
+                    sort_field_enum=UserSortableField,
+                    sort_columns=_USER_LIST_SORT_COLUMNS,
+                    tie_break_field=UserSortableField.ID,
+                    tie_break_direction=SortDirection.DESC,
+                ),
+            )
             .offset(list_query.offset)
             .limit(list_query.limit)
         )

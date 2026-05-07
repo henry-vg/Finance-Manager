@@ -4,7 +4,6 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from src.adapters.input.api.pagination import create_list_query_dependency
 from src.adapters.input.api.routes.user_route import create_router
 from src.core.domain.user import (
     CreateUserData,
@@ -14,7 +13,7 @@ from src.core.domain.user import (
     UserNotFoundError,
 )
 from src.core.ports.input.user_input_port import UserInputPort
-from src.core.shared import ListQuery, Page
+from src.core.shared import ListQuery, Page, SortDirection, SortTerm
 
 
 def _build_timestamp(
@@ -39,6 +38,34 @@ def _build_timestamp(
     )
 
 
+def _sort_users(
+    users: list[User],
+    sort_terms: tuple[SortTerm, ...],
+) -> list[User]:
+    sorted_users = list(users)
+    effective_sort_terms = sort_terms or (
+        SortTerm(
+            field="created_at",
+            direction=SortDirection.DESC,
+        ),
+    )
+    sort_chain = (
+        *effective_sort_terms,
+        SortTerm(
+            field="id",
+            direction=SortDirection.DESC,
+        ),
+    )
+
+    for sort_term in reversed(sort_chain):
+        sorted_users.sort(
+            key=lambda user: getattr(user, sort_term.field),
+            reverse=sort_term.direction == SortDirection.DESC,
+        )
+
+    return sorted_users
+
+
 class _UserInputPortStub(UserInputPort):
     def __init__(
         self,
@@ -54,11 +81,14 @@ class _UserInputPortStub(UserInputPort):
         list_query: ListQuery,
     ) -> Page[User]:
         self.list_user_queries.append(list_query)
-        active_users = [
-            user
-            for user in self.users_by_email.values()
-            if user.email not in self.soft_deleted_emails
-        ]
+        active_users = _sort_users(
+            [
+                user
+                for user in self.users_by_email.values()
+                if user.email not in self.soft_deleted_emails
+            ],
+            list_query.sort,
+        )
 
         return Page[User](
             items=active_users[
@@ -199,10 +229,8 @@ def _create_test_app(
     app.include_router(
         create_router(
             user_input_port=user_input_port,
-            list_query_dependency=create_list_query_dependency(
-                default_limit=50,
-                max_limit=500,
-            ),
+            pagination_default_limit=50,
+            pagination_max_limit=500,
         ),
     )
 
@@ -287,6 +315,7 @@ async def test_list_users_returns_paginated_response() -> None:
             params={
                 "offset": 0,
                 "limit": 1,
+                "sort": "email",
             },
         )
 
@@ -310,6 +339,64 @@ async def test_list_users_returns_paginated_response() -> None:
         ListQuery(
             offset=0,
             limit=1,
+            sort=(
+                SortTerm(
+                    field="email",
+                    direction=SortDirection.ASC,
+                ),
+            ),
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_list_users_accepts_id_as_sort_field() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    user_input_port_stub.users_by_email["grace@example.com"] = User(
+        id=2,
+        first_name="Grace",
+        last_name="Hopper",
+        email="grace@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1906, 12, 9),
+        created_at=_build_timestamp(year=2026, month=5, day=2),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    app = _create_test_app(user_input_port_stub)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "offset": 0,
+                "limit": 1,
+                "sort": "-id",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["email"] == "grace@example.com"
+    assert user_input_port_stub.list_user_queries == [
+        ListQuery(
+            offset=0,
+            limit=1,
+            sort=(
+                SortTerm(
+                    field="id",
+                    direction=SortDirection.DESC,
+                ),
+            ),
         ),
     ]
 

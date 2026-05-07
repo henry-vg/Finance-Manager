@@ -202,8 +202,20 @@ async def test_openapi_endpoint_exposes_expected_metadata():
     assert {parameter["name"] for parameter in user_list_path["get"]["parameters"]} == {
         "offset",
         "limit",
+        "sort",
     }
     assert "200" in user_list_path["get"]["responses"]
+
+    sort_parameter = next(
+        parameter
+        for parameter in user_list_path["get"]["parameters"]
+        if parameter["name"] == "sort"
+    )
+
+    assert "+" in sort_parameter["description"]
+    assert "-" in sort_parameter["description"]
+    assert "created_at" in sort_parameter["description"]
+    assert "id" in sort_parameter["description"]
 
 
 @pytest.mark.anyio

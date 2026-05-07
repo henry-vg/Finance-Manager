@@ -1,5 +1,3 @@
-from collections.abc import Callable
-
 from fastapi import APIRouter
 
 from src.adapters.input.api.routes import (
@@ -9,7 +7,6 @@ from src.adapters.input.api.routes import (
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.user_input_port import UserInputPort
-from src.core.shared import ListQuery
 
 
 def create_api_router(
@@ -17,7 +14,8 @@ def create_api_router(
     docs_title: str,
     docs_dark_mode: bool,
     openapi_url: str,
-    list_query_dependency: Callable[..., ListQuery],
+    pagination_default_limit: int,
+    pagination_max_limit: int,
     healthz_input_port: HealthzInputPort,
     user_input_port: UserInputPort,
 ) -> APIRouter:
@@ -42,7 +40,8 @@ def create_api_router(
     api_router.include_router(
         router=user_route.create_router(
             user_input_port=user_input_port,
-            list_query_dependency=list_query_dependency,
+            pagination_default_limit=pagination_default_limit,
+            pagination_max_limit=pagination_max_limit,
         ),
     )
 

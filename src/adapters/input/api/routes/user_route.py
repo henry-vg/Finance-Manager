@@ -1,21 +1,30 @@
-from collections.abc import Callable
+from enum import StrEnum
 from typing import Annotated
 
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     Query,
     Response,
     status,
 )
 
+from src.adapters.input.api.exception_translation import (
+    HTTPExceptionTranslation,
+    translate_exceptions_to_http,
+)
+from src.adapters.input.api.pagination import (
+    EndpointSortField,
+    ListQuerySortConfig,
+    create_list_query_dependency,
+)
 from src.core.domain.user import (
     CreateUserData,
     UpdateUserData,
     User,
     UserEmailConflictError,
     UserNotFoundError,
+    UserSortableField,
 )
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page
@@ -26,6 +35,16 @@ from ..schemas.user_schema import (
     UpdateUserRequest,
     UserResponse,
 )
+
+
+class UserListSortField(StrEnum):
+    ID = "id"
+    FIRST_NAME = "first_name"
+    LAST_NAME = "last_name"
+    EMAIL = "email"
+    BIRTH_DATE = "birth_date"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
 
 
 def _to_user_response(
@@ -59,8 +78,30 @@ def _to_user_page_response(
 
 def create_router(
     user_input_port: UserInputPort,
-    list_query_dependency: Callable[..., ListQuery],
+    pagination_default_limit: int,
+    pagination_max_limit: int,
 ) -> APIRouter:
+    user_not_found_translation = HTTPExceptionTranslation(
+        exception_type=UserNotFoundError,
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found.",
+    )
+    user_email_conflict_translation = HTTPExceptionTranslation(
+        exception_type=UserEmailConflictError,
+        status_code=status.HTTP_409_CONFLICT,
+        detail="User email already exists.",
+    )
+    list_sort_config = ListQuerySortConfig(
+        fields=tuple(
+            EndpointSortField(
+                query_name=sort_field.value,
+                item_field_name=UserSortableField[sort_field.name].value,
+            )
+            for sort_field in UserListSortField
+        ),
+        default_sort=(UserListSortField.CREATED_AT.value,),
+    )
+
     router = APIRouter(
         prefix="/user",
         tags=["User"],
@@ -72,7 +113,8 @@ def create_router(
         status_code=status.HTTP_200_OK,
         description=(
             "Endpoint used to list persisted active users with offset/limit "
-            "pagination. Soft-deleted users are excluded, and the response "
+            "pagination and optional sort expressions such as `email` or "
+            "`-created_at`. Soft-deleted users are excluded, and the response "
             "returns items together with offset, limit and total."
         ),
         responses={
@@ -81,14 +123,23 @@ def create_router(
                     "The paginated user collection was returned successfully."
                 ),
             },
-            422: {
+            400: {
                 "description": "The pagination query parameters failed validation.",
             },
         },
         summary="List Users",
     )
     async def list_users(
-        list_query: Annotated[ListQuery, Depends(list_query_dependency)],
+        list_query: Annotated[
+            ListQuery,
+            Depends(
+                create_list_query_dependency(
+                    default_limit=pagination_default_limit,
+                    max_limit=pagination_max_limit,
+                    sort_config=list_sort_config,
+                ),
+            ),
+        ],
     ) -> PageResponse[UserResponse]:
         page = await user_input_port.list_users(
             list_query=list_query,
@@ -126,15 +177,10 @@ def create_router(
             description="Email address of the user to retrieve.",
         ),
     ) -> UserResponse:
-        try:
+        with translate_exceptions_to_http(user_not_found_translation):
             user = await user_input_port.get_user(
                 email=email,
             )
-        except UserNotFoundError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found.",
-            ) from exc
 
         return _to_user_response(
             user=user,
@@ -165,7 +211,7 @@ def create_router(
     async def create_user(
         payload: CreateUserRequest,
     ) -> UserResponse:
-        try:
+        with translate_exceptions_to_http(user_email_conflict_translation):
             user = await user_input_port.create_user(
                 data=CreateUserData(
                     first_name=payload.first_name,
@@ -175,11 +221,6 @@ def create_router(
                     birth_date=payload.birth_date,
                 ),
             )
-        except UserEmailConflictError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="User email already exists.",
-            ) from exc
 
         return _to_user_response(
             user=user,
@@ -219,7 +260,10 @@ def create_router(
             description="Current email address of the user to update.",
         ),
     ) -> UserResponse:
-        try:
+        with translate_exceptions_to_http(
+            user_not_found_translation,
+            user_email_conflict_translation,
+        ):
             user = await user_input_port.update_user(
                 current_email=current_email,
                 data=UpdateUserData(
@@ -230,16 +274,6 @@ def create_router(
                     birth_date=payload.birth_date,
                 ),
             )
-        except UserNotFoundError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found.",
-            ) from exc
-        except UserEmailConflictError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="User email already exists.",
-            ) from exc
 
         return _to_user_response(
             user=user,
@@ -283,16 +317,11 @@ def create_router(
             ),
         ),
     ) -> Response:
-        try:
+        with translate_exceptions_to_http(user_not_found_translation):
             await user_input_port.delete_user(
                 email=email,
                 hard_delete=hard_delete,
             )
-        except UserNotFoundError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found.",
-            ) from exc
 
         return Response(
             status_code=status.HTTP_204_NO_CONTENT,

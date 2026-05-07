@@ -1,13 +1,57 @@
-from src.adapters.input.api.pagination import create_list_query_dependency
+from enum import StrEnum
+
+import pytest
+from fastapi.exceptions import RequestValidationError
+
+from src.adapters.input.api.pagination import (
+    EndpointSortField,
+    ListQuerySortConfig,
+    create_list_query_dependency,
+)
+from src.core.shared import SortDirection, SortTerm
 
 DEFAULT_PAGE_LIMIT = 50
 MAX_PAGE_LIMIT = 500
+
+
+class _ListItemSortField(StrEnum):
+    FIRST_NAME = "first_name"
+    CREATED_AT = "created_at"
+    CREATED = "created"
 
 
 def _build_list_query_dependency():
     return create_list_query_dependency(
         default_limit=DEFAULT_PAGE_LIMIT,
         max_limit=MAX_PAGE_LIMIT,
+        sort_config=ListQuerySortConfig(
+            fields=(
+                EndpointSortField(
+                    query_name=_ListItemSortField.FIRST_NAME.value,
+                    item_field_name="first_name",
+                ),
+                EndpointSortField(
+                    query_name=_ListItemSortField.CREATED_AT.value,
+                    item_field_name="created_at",
+                ),
+            ),
+            default_sort=(f"-{_ListItemSortField.CREATED_AT.value}",),
+        ),
+    )
+
+
+def _build_alias_list_query_dependency():
+    return create_list_query_dependency(
+        default_limit=DEFAULT_PAGE_LIMIT,
+        max_limit=MAX_PAGE_LIMIT,
+        sort_config=ListQuerySortConfig(
+            fields=(
+                EndpointSortField(
+                    query_name=_ListItemSortField.CREATED.value,
+                    item_field_name="created_at",
+                ),
+            ),
+        ),
     )
 
 
@@ -16,16 +60,33 @@ def test_get_list_query_uses_default_limit() -> None:
 
     assert query.offset == 0
     assert query.limit == DEFAULT_PAGE_LIMIT
+    assert query.sort == (
+        SortTerm(
+            field="created_at",
+            direction=SortDirection.DESC,
+        ),
+    )
 
 
 def test_get_list_query_accepts_custom_offset_and_limit() -> None:
     query = _build_list_query_dependency()(
         offset=15,
         limit=120,
+        sort="first_name,+created_at",
     )
 
     assert query.offset == 15
     assert query.limit == 120
+    assert query.sort == (
+        SortTerm(
+            field="first_name",
+            direction=SortDirection.ASC,
+        ),
+        SortTerm(
+            field="created_at",
+            direction=SortDirection.ASC,
+        ),
+    )
 
 
 def test_get_list_query_accepts_maximum_limit() -> None:
@@ -35,3 +96,30 @@ def test_get_list_query_accepts_maximum_limit() -> None:
     )
 
     assert query.limit == MAX_PAGE_LIMIT
+
+
+def test_get_list_query_rejects_sort_field_outside_endpoint_whitelist() -> None:
+    with pytest.raises(RequestValidationError, match="Invalid sort field"):
+        _build_list_query_dependency()(
+            sort="hidden_value",
+        )
+
+
+def test_get_list_query_rejects_empty_sort_term() -> None:
+    with pytest.raises(RequestValidationError, match="cannot be empty"):
+        _build_list_query_dependency()(
+            sort="first_name,,created_at",
+        )
+
+
+def test_get_list_query_maps_public_sort_alias_to_internal_field() -> None:
+    query = _build_alias_list_query_dependency()(
+        sort="-created",
+    )
+
+    assert query.sort == (
+        SortTerm(
+            field="created_at",
+            direction=SortDirection.DESC,
+        ),
+    )

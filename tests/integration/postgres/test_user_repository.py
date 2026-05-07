@@ -7,9 +7,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from src.core.domain.user import NewUser, UserChanges
+from src.core.domain.user import NewUser, UserChanges, UserSortableField
 from src.core.ports.output.user_output_port import UserEmailConflictOutputPortError
-from src.core.shared import ListQuery
+from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
     SQLAlchemyPostgresUnitOfWorkFactory,
     SQLAlchemyUserOutputAdapter,
@@ -223,12 +223,14 @@ async def test_list_users_returns_paginated_active_users_with_total(
                 email="ada@example.com",
             ),
         )
+        await session.execute(text("SELECT pg_sleep(0.01)"))
         soft_deleted_user = await repository.create_user(
             new_user=_build_new_user(
                 first_name="Grace",
                 email="grace@example.com",
             ),
         )
+        await session.execute(text("SELECT pg_sleep(0.01)"))
         await repository.create_user(
             new_user=_build_new_user(
                 first_name="Katherine",
@@ -245,15 +247,118 @@ async def test_list_users_returns_paginated_active_users_with_total(
 
         page = await repository.list_users(
             list_query=ListQuery(
-                offset=1,
+                offset=0,
                 limit=1,
+                sort=(
+                    SortTerm(
+                        field=UserSortableField.CREATED_AT.value,
+                        direction=SortDirection.DESC,
+                    ),
+                ),
             ),
         )
 
-    assert page.offset == 1
+    assert page.offset == 0
     assert page.limit == 1
     assert page.total == 2
     assert [user.email for user in page.items] == ["katherine@example.com"]
+
+
+@pytest.mark.anyio
+async def test_list_users_applies_multiple_sort_terms(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Ada",
+                email="zeta@example.com",
+            ),
+        )
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Ada",
+                email="alpha@example.com",
+            ),
+        )
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Grace",
+                email="grace@example.com",
+            ),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        page = await repository.list_users(
+            list_query=ListQuery(
+                offset=0,
+                limit=10,
+                sort=(
+                    SortTerm(
+                        field="first_name",
+                        direction=SortDirection.ASC,
+                    ),
+                    SortTerm(
+                        field="email",
+                        direction=SortDirection.ASC,
+                    ),
+                ),
+            ),
+        )
+
+    assert [user.email for user in page.items] == [
+        "alpha@example.com",
+        "zeta@example.com",
+        "grace@example.com",
+    ]
+
+
+@pytest.mark.anyio
+async def test_list_users_allows_explicit_id_sort_without_extra_tie_break(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Ada",
+                email="ada@example.com",
+            ),
+        )
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Grace",
+                email="grace@example.com",
+            ),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        page = await repository.list_users(
+            list_query=ListQuery(
+                offset=0,
+                limit=10,
+                sort=(
+                    SortTerm(
+                        field="id",
+                        direction=SortDirection.DESC,
+                    ),
+                ),
+            ),
+        )
+
+    assert [user.email for user in page.items] == [
+        "grace@example.com",
+        "ada@example.com",
+    ]
 
 
 @pytest.mark.anyio
@@ -267,6 +372,12 @@ async def test_list_users_returns_empty_page_when_no_active_users_exist(
             list_query=ListQuery(
                 offset=0,
                 limit=10,
+                sort=(
+                    SortTerm(
+                        field=UserSortableField.CREATED_AT.value,
+                        direction=SortDirection.DESC,
+                    ),
+                ),
             ),
         )
 
@@ -274,6 +385,22 @@ async def test_list_users_returns_empty_page_when_no_active_users_exist(
     assert page.offset == 0
     assert page.limit == 10
     assert page.total == 0
+
+
+@pytest.mark.anyio
+async def test_list_users_rejects_empty_sort_terms(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        with pytest.raises(ValueError, match="cannot be empty"):
+            await repository.list_users(
+                list_query=ListQuery(
+                    offset=0,
+                    limit=10,
+                ),
+            )
 
 
 @pytest.mark.anyio

@@ -19,7 +19,7 @@ from src.core.domain.user import (
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.user_input_port import UserInputPort
-from src.core.shared import ListQuery, Page
+from src.core.shared import ListQuery, Page, SortDirection, SortTerm
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
 
@@ -44,6 +44,34 @@ def _build_timestamp(
         microsecond,
         tzinfo=UTC,
     )
+
+
+def _sort_users(
+    users: list[User],
+    sort_terms: tuple[SortTerm, ...],
+) -> list[User]:
+    sorted_users = list(users)
+    effective_sort_terms = sort_terms or (
+        SortTerm(
+            field="created_at",
+            direction=SortDirection.DESC,
+        ),
+    )
+    sort_chain = (
+        *effective_sort_terms,
+        SortTerm(
+            field="id",
+            direction=SortDirection.DESC,
+        ),
+    )
+
+    for sort_term in reversed(sort_chain):
+        sorted_users.sort(
+            key=lambda user: getattr(user, sort_term.field),
+            reverse=sort_term.direction == SortDirection.DESC,
+        )
+
+    return sorted_users
 
 
 class _ReadyHealthzInputPortStub(HealthzInputPort):
@@ -75,11 +103,14 @@ class _UserInputPortStub(UserInputPort):
         list_query: ListQuery,
     ) -> Page[User]:
         self.list_user_queries.append(list_query)
-        active_users = [
-            user
-            for user in self.users_by_email.values()
-            if user.email not in self.soft_deleted_emails
-        ]
+        active_users = _sort_users(
+            [
+                user
+                for user in self.users_by_email.values()
+                if user.email not in self.soft_deleted_emails
+            ],
+            list_query.sort,
+        )
 
         return Page[User](
             items=active_users[
@@ -369,8 +400,9 @@ async def test_list_users_returns_paginated_response_through_http_app() -> None:
         response = await client.get(
             "/user/list",
             params={
-                "offset": 1,
+                "offset": 0,
                 "limit": 1,
+                "sort": "email",
             },
         )
 
@@ -378,22 +410,79 @@ async def test_list_users_returns_paginated_response_through_http_app() -> None:
     assert response.json() == {
         "items": [
             {
-                "first_name": "Katherine",
-                "last_name": "Johnson",
-                "email": "katherine@example.com",
-                "birth_date": "1918-08-26",
-                "created_at": "2026-05-03T00:00:00.000Z",
-                "updated_at": "2026-05-03T00:00:00.000Z",
+                "first_name": "Ada",
+                "last_name": "Lovelace",
+                "email": "ada@example.com",
+                "birth_date": "1815-12-10",
+                "created_at": "2026-05-01T00:00:00.000Z",
+                "updated_at": "2026-05-01T00:00:00.000Z",
             },
         ],
-        "offset": 1,
+        "offset": 0,
         "limit": 1,
         "total": 2,
     }
     assert user_input_port_stub.list_user_queries == [
         ListQuery(
-            offset=1,
+            offset=0,
             limit=1,
+            sort=(
+                SortTerm(
+                    field="email",
+                    direction=SortDirection.ASC,
+                ),
+            ),
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_list_users_uses_default_created_at_desc_through_http_app() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    user_input_port_stub.users_by_email["katherine@example.com"] = User(
+        id=3,
+        first_name="Katherine",
+        last_name="Johnson",
+        email="katherine@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1918, 8, 26),
+        created_at=_build_timestamp(year=2026, month=5, day=3),
+        updated_at=_build_timestamp(year=2026, month=5, day=3),
+    )
+    app = _create_test_app(user_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "offset": 0,
+                "limit": 1,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["email"] == "katherine@example.com"
+    assert user_input_port_stub.list_user_queries == [
+        ListQuery(
+            offset=0,
+            limit=1,
+            sort=(
+                SortTerm(
+                    field="created_at",
+                    direction=SortDirection.DESC,
+                ),
+            ),
         ),
     ]
 
@@ -413,6 +502,74 @@ async def test_list_users_rejects_invalid_limit_through_http_app() -> None:
         )
 
     assert response.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_list_users_rejects_sort_field_outside_endpoint_whitelist() -> None:
+    app = _create_test_app(_UserInputPortStub())
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "sort": "password_hash",
+            },
+        )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_list_users_accepts_id_as_sort_field_through_http_app() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    user_input_port_stub.users_by_email["katherine@example.com"] = User(
+        id=3,
+        first_name="Katherine",
+        last_name="Johnson",
+        email="katherine@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1918, 8, 26),
+        created_at=_build_timestamp(year=2026, month=5, day=3),
+        updated_at=_build_timestamp(year=2026, month=5, day=3),
+    )
+    app = _create_test_app(user_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "offset": 0,
+                "limit": 1,
+                "sort": "-id",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["email"] == "katherine@example.com"
+    assert user_input_port_stub.list_user_queries == [
+        ListQuery(
+            offset=0,
+            limit=1,
+            sort=(
+                SortTerm(
+                    field="id",
+                    direction=SortDirection.DESC,
+                ),
+            ),
+        ),
+    ]
 
 
 @pytest.mark.anyio
