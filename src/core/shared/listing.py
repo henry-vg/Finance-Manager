@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Self
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ListQuery(BaseModel):
@@ -21,3 +23,10 @@ class Page[ItemT](BaseModel):
     offset: int = Field(ge=0)
     limit: int = Field(gt=0)
     total: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_items_length(self) -> Self:
+        if len(self.items) > self.limit:
+            raise ValueError("items length cannot be greater than limit")
+
+        return self

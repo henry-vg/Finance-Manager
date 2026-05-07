@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from src.core.domain.user import NewUser, User, UserChanges
+from src.core.shared import ListQuery, Page
 
 
 class UserEmailConflictOutputPortError(Exception):
@@ -8,6 +9,11 @@ class UserEmailConflictOutputPortError(Exception):
 
 
 class UserOutputPort(Protocol):
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]: ...
+
     async def get_user_by_email(
         self,
         email: str,

@@ -5,9 +5,15 @@ from src.core.domain.user import (
     UpdateUserData,
     User,
 )
+from src.core.shared import ListQuery, Page
 
 
 class UserInputPort(Protocol):
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]: ...
+
     async def get_user(
         self,
         email: str,

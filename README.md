@@ -101,6 +101,8 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - The central HTTP pagination parser lives in the adapter layer and is responsible for translating query params into the core list query type.
 - The current central pagination contract supports only `offset` and `limit`; future `sort`, `filter` and `query` concerns must extend the same shared module instead of introducing route-specific pagination shapes.
 - The current HTTP defaults are `offset=0`, `limit=settings.fastapi.pagination_default_limit` and `limit<=settings.fastapi.pagination_max_limit`.
+- The first concrete paginated collection endpoint is `GET /user/list`. It reuses the shared pagination primitives and returns `PageResponse[UserResponse]`.
+- The user collection endpoint lists only active users; soft-deleted users remain invisible in paginated reads just as they do in normal `GET` flows.
 - Paginated HTTP responses should include `items`, `offset`, `limit` and `total`.
 
 ### Security and Hashing Rules

@@ -19,6 +19,7 @@ from src.core.domain.user import (
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.user_input_port import UserInputPort
+from src.core.shared import ListQuery, Page
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
 
@@ -66,7 +67,28 @@ class _UserInputPortStub(UserInputPort):
         self.users_by_email: dict[str, User] = {}
         self.soft_deleted_emails: set[str] = set()
         self.delete_calls: list[tuple[str, bool]] = []
+        self.list_user_queries: list[ListQuery] = []
         self._next_user_id = 1
+
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        self.list_user_queries.append(list_query)
+        active_users = [
+            user
+            for user in self.users_by_email.values()
+            if user.email not in self.soft_deleted_emails
+        ]
+
+        return Page[User](
+            items=active_users[
+                list_query.offset : list_query.offset + list_query.limit
+            ],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=len(active_users),
+        )
 
     async def get_user(
         self,
@@ -304,6 +326,93 @@ async def test_hard_delete_query_param_removes_user_through_http_app() -> None:
     assert delete_response.status_code == 204
     assert user_input_port_stub.delete_calls == [("ada@example.com", True)]
     assert missing_response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_list_users_returns_paginated_response_through_http_app() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    user_input_port_stub.users_by_email["grace@example.com"] = User(
+        id=2,
+        first_name="Grace",
+        last_name="Hopper",
+        email="grace@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1906, 12, 9),
+        created_at=_build_timestamp(year=2026, month=5, day=2),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    user_input_port_stub.soft_deleted_emails.add("grace@example.com")
+    user_input_port_stub.users_by_email["katherine@example.com"] = User(
+        id=3,
+        first_name="Katherine",
+        last_name="Johnson",
+        email="katherine@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1918, 8, 26),
+        created_at=_build_timestamp(year=2026, month=5, day=3),
+        updated_at=_build_timestamp(year=2026, month=5, day=3),
+    )
+    app = _create_test_app(user_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "offset": 1,
+                "limit": 1,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "first_name": "Katherine",
+                "last_name": "Johnson",
+                "email": "katherine@example.com",
+                "birth_date": "1918-08-26",
+                "created_at": "2026-05-03T00:00:00.000Z",
+                "updated_at": "2026-05-03T00:00:00.000Z",
+            },
+        ],
+        "offset": 1,
+        "limit": 1,
+        "total": 2,
+    }
+    assert user_input_port_stub.list_user_queries == [
+        ListQuery(
+            offset=1,
+            limit=1,
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_list_users_rejects_invalid_limit_through_http_app() -> None:
+    app = _create_test_app(_UserInputPortStub())
+    transport = httpx.ASGITransport(app=app)
+    settings = load_settings()
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "limit": settings.fastapi.pagination_max_limit + 1,
+            },
+        )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.anyio

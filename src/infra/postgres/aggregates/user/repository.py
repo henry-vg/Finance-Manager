@@ -1,6 +1,6 @@
 from typing import cast
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from src.core.ports.output.user_output_port import (
     UserEmailConflictOutputPortError,
     UserOutputPort,
 )
+from src.core.shared import ListQuery, Page
 
 from ...integrity import is_unique_violation
 from .models import USER_EMAIL_UNIQUE_CONSTRAINT_NAME, UserRecord
@@ -40,6 +41,43 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         session: AsyncSession,
     ) -> None:
         self._session = session
+
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        statement = (
+            select(UserRecord)
+            .where(UserRecord.is_deleted.is_(False))
+            .order_by(UserRecord.id.asc())
+            .offset(list_query.offset)
+            .limit(list_query.limit)
+        )
+        total_statement = (
+            select(func.count())
+            .select_from(UserRecord)
+            .where(
+                UserRecord.is_deleted.is_(False),
+            )
+        )
+
+        user_records = cast(
+            list[UserRecord],
+            list((await self._session.scalars(statement)).all()),
+        )
+        total = cast(int, await self._session.scalar(total_statement))
+
+        return Page[User](
+            items=[
+                _to_domain_user(
+                    user_record=user_record,
+                )
+                for user_record in user_records
+            ],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=total,
+        )
 
     async def get_user_by_email(
         self,

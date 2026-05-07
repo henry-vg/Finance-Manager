@@ -11,6 +11,7 @@ from src.core.ports.input.user_input_port import UserInputPort
 from src.core.ports.output.password_hasher_output_port import PasswordHasherOutputPort
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
 from src.core.ports.output.user_output_port import UserEmailConflictOutputPortError
+from src.core.shared import ListQuery, Page
 
 
 class UserUseCase(UserInputPort):
@@ -21,6 +22,15 @@ class UserUseCase(UserInputPort):
     ) -> None:
         self._unit_of_work_output_port_factory = unit_of_work_output_port_factory
         self._password_hasher_output_port = password_hasher_output_port
+
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        async with self._unit_of_work_output_port_factory() as unit_of_work:
+            return await unit_of_work.users.list_users(
+                list_query=list_query,
+            )
 
     async def get_user(
         self,

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from src.adapters.input.api.exception_handlers import add_exception_handlers
 from src.adapters.input.api.middlewares import add_middlewares
+from src.adapters.input.api.pagination import create_list_query_dependency
 from src.adapters.input.api.router import create_api_router
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.user_input_port import UserInputPort
@@ -52,6 +53,10 @@ def create_http_app(
     add_middlewares(app=app)
 
     logger.debug(msg="Including routers...")
+    list_query_dependency = create_list_query_dependency(
+        default_limit=settings.fastapi.pagination_default_limit,
+        max_limit=settings.fastapi.pagination_max_limit,
+    )
     router = create_api_router(
         docs_url=settings.fastapi.docs_url,
         docs_title=settings.fastapi.docs_title,
@@ -59,6 +64,7 @@ def create_http_app(
         openapi_url=settings.fastapi.openapi_url,
         healthz_input_port=healthz_input_port,
         user_input_port=user_input_port,
+        list_query_dependency=list_query_dependency,
     )
 
     app.include_router(router=router)

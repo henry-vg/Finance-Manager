@@ -12,6 +12,7 @@ from src.core.domain.user import (
 )
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.ports.output.database_health_output_port import DatabaseHealthOutputPort
+from src.core.shared import ListQuery, Page
 from src.core.usecases.healthz_usecase import HealthzUseCase
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
@@ -50,6 +51,17 @@ class _HealthyDatabaseHealthOutputPortStub(DatabaseHealthOutputPort):
 
 
 class _UserInputPortStub(UserInputPort):
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        return Page[User](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
     async def get_user(
         self,
         email,

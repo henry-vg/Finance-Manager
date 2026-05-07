@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.core.domain.user import NewUser, UserChanges
 from src.core.ports.output.user_output_port import UserEmailConflictOutputPortError
+from src.core.shared import ListQuery
 from src.infra.postgres import (
     SQLAlchemyPostgresUnitOfWorkFactory,
     SQLAlchemyUserOutputAdapter,
@@ -207,6 +208,72 @@ async def test_create_user_raises_on_email_conflict(
                     birth_date=date(1906, 12, 9),
                 ),
             )
+
+
+@pytest.mark.anyio
+async def test_list_users_returns_paginated_active_users_with_total(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Ada",
+                email="ada@example.com",
+            ),
+        )
+        soft_deleted_user = await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Grace",
+                email="grace@example.com",
+            ),
+        )
+        await repository.create_user(
+            new_user=_build_new_user(
+                first_name="Katherine",
+                email="katherine@example.com",
+            ),
+        )
+        await repository.soft_delete_user(
+            user_id=soft_deleted_user.id,
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        page = await repository.list_users(
+            list_query=ListQuery(
+                offset=1,
+                limit=1,
+            ),
+        )
+
+    assert page.offset == 1
+    assert page.limit == 1
+    assert page.total == 2
+    assert [user.email for user in page.items] == ["katherine@example.com"]
+
+
+@pytest.mark.anyio
+async def test_list_users_returns_empty_page_when_no_active_users_exist(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        page = await repository.list_users(
+            list_query=ListQuery(
+                offset=0,
+                limit=10,
+            ),
+        )
+
+    assert page.items == []
+    assert page.offset == 0
+    assert page.limit == 10
+    assert page.total == 0
 
 
 @pytest.mark.anyio

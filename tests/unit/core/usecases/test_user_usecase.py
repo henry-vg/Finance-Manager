@@ -20,6 +20,7 @@ from src.core.ports.output.user_output_port import (
     UserEmailConflictOutputPortError,
     UserOutputPort,
 )
+from src.core.shared import ListQuery, Page
 from src.core.usecases.user_usecase import UserUseCase
 
 
@@ -88,10 +89,33 @@ class _UserOutputPortStub(UserOutputPort):
         self.soft_deleted_user_ids: list[int] = []
         self.hard_deleted_user_ids: list[int] = []
         self.created_users: list[NewUser] = []
+        self.list_user_queries: list[ListQuery] = []
         self.updated_users: list[tuple[int, UserChanges]] = []
         self.create_error: Exception | None = None
         self.update_error: Exception | None = None
         self._next_user_id = 1
+
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        self.list_user_queries.append(list_query)
+
+        active_users = [
+            user
+            for user_id, user in sorted(self.users_by_id.items())
+            if user_id not in self.soft_deleted_user_ids
+        ]
+        page_items = active_users[
+            list_query.offset : list_query.offset + list_query.limit
+        ]
+
+        return Page[User](
+            items=page_items,
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=len(active_users),
+        )
 
     async def get_user_by_email(
         self,
@@ -304,6 +328,69 @@ async def test_get_user_returns_existing_user() -> None:
     )
 
     assert result == existing_user
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
+
+
+@pytest.mark.anyio
+async def test_list_users_returns_paginated_active_users_without_commit() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.users_by_id[1] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    user_output_port_stub.users_by_id[2] = User(
+        id=2,
+        first_name="Grace",
+        last_name="Hopper",
+        email="grace@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1906, 12, 9),
+        created_at=_build_timestamp(year=2026, month=5, day=2),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    user_output_port_stub.users_by_id[3] = User(
+        id=3,
+        first_name="Katherine",
+        last_name="Johnson",
+        email="katherine@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1918, 8, 26),
+        created_at=_build_timestamp(year=2026, month=5, day=3),
+        updated_at=_build_timestamp(year=2026, month=5, day=3),
+    )
+    user_output_port_stub.soft_deleted_user_ids.append(2)
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
+
+    list_query = ListQuery(
+        offset=0,
+        limit=2,
+    )
+
+    result = await use_case.list_users(
+        list_query=list_query,
+    )
+
+    assert result == Page[User](
+        items=[
+            user_output_port_stub.users_by_id[1],
+            user_output_port_stub.users_by_id[3],
+        ],
+        offset=0,
+        limit=2,
+        total=2,
+    )
+    assert user_output_port_stub.list_user_queries == [list_query]
     unit_of_work_output_port = _get_created_unit_of_work_output_port(
         unit_of_work_output_port_factory,
     )

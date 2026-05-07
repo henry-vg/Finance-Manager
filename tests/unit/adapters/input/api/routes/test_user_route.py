@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
+from src.adapters.input.api.pagination import create_list_query_dependency
 from src.adapters.input.api.routes.user_route import create_router
 from src.core.domain.user import (
     CreateUserData,
@@ -13,6 +14,7 @@ from src.core.domain.user import (
     UserNotFoundError,
 )
 from src.core.ports.input.user_input_port import UserInputPort
+from src.core.shared import ListQuery, Page
 
 
 def _build_timestamp(
@@ -44,7 +46,28 @@ class _UserInputPortStub(UserInputPort):
         self.users_by_email: dict[str, User] = {}
         self.soft_deleted_emails: set[str] = set()
         self.delete_calls: list[tuple[str, bool]] = []
+        self.list_user_queries: list[ListQuery] = []
         self._next_user_id = 1
+
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        self.list_user_queries.append(list_query)
+        active_users = [
+            user
+            for user in self.users_by_email.values()
+            if user.email not in self.soft_deleted_emails
+        ]
+
+        return Page[User](
+            items=active_users[
+                list_query.offset : list_query.offset + list_query.limit
+            ],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=len(active_users),
+        )
 
     async def get_user(
         self,
@@ -176,6 +199,10 @@ def _create_test_app(
     app.include_router(
         create_router(
             user_input_port=user_input_port,
+            list_query_dependency=create_list_query_dependency(
+                default_limit=50,
+                max_limit=500,
+            ),
         ),
     )
 
@@ -226,6 +253,65 @@ async def test_get_user_returns_user_response() -> None:
         "created_at": "2026-05-03T12:30:15.123Z",
         "updated_at": "2026-05-03T12:30:15.123Z",
     }
+
+
+@pytest.mark.anyio
+async def test_list_users_returns_paginated_response() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    user_input_port_stub.users_by_email["grace@example.com"] = User(
+        id=2,
+        first_name="Grace",
+        last_name="Hopper",
+        email="grace@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1906, 12, 9),
+        created_at=_build_timestamp(year=2026, month=5, day=2),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    app = _create_test_app(user_input_port_stub)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "offset": 0,
+                "limit": 1,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "first_name": "Ada",
+                "last_name": "Lovelace",
+                "email": "ada@example.com",
+                "birth_date": "1815-12-10",
+                "created_at": "2026-05-01T00:00:00.000Z",
+                "updated_at": "2026-05-01T00:00:00.000Z",
+            },
+        ],
+        "offset": 0,
+        "limit": 1,
+        "total": 2,
+    }
+    assert user_input_port_stub.list_user_queries == [
+        ListQuery(
+            offset=0,
+            limit=1,
+        ),
+    ]
 
 
 @pytest.mark.anyio

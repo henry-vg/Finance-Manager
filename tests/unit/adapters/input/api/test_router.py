@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 
 from fastapi.routing import APIRoute
 
+from src.adapters.input.api.pagination import create_list_query_dependency
 from src.adapters.input.api.router import create_api_router
 from src.core.domain.healthz import (
     HealthzLiveness,
@@ -16,6 +17,7 @@ from src.core.domain.user import (
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.user_input_port import UserInputPort
+from src.core.shared import ListQuery, Page
 
 
 def _build_timestamp(
@@ -55,6 +57,17 @@ class _HealthyHealthzInputPortStub(HealthzInputPort):
 
 
 class _UserInputPortStub(UserInputPort):
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        return Page[User](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
     async def get_user(
         self,
         email,
@@ -119,6 +132,10 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
         openapi_url="/openapi.json",
         healthz_input_port=_HealthyHealthzInputPortStub(),
         user_input_port=_UserInputPortStub(),
+        list_query_dependency=create_list_query_dependency(
+            default_limit=50,
+            max_limit=500,
+        ),
     )
 
     route_paths = {route.path for route in router.routes if isinstance(route, APIRoute)}
@@ -127,3 +144,4 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
     assert "/healthz/liveness" in route_paths
     assert "/healthz/readiness" in route_paths
     assert "/user" in route_paths
+    assert "/user/list" in route_paths

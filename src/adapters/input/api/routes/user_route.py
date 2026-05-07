@@ -1,5 +1,9 @@
+from collections.abc import Callable
+from typing import Annotated
+
 from fastapi import (
     APIRouter,
+    Depends,
     HTTPException,
     Query,
     Response,
@@ -14,7 +18,9 @@ from src.core.domain.user import (
     UserNotFoundError,
 )
 from src.core.ports.input.user_input_port import UserInputPort
+from src.core.shared import ListQuery, Page
 
+from ..schemas import PageResponse
 from ..schemas.user_schema import (
     CreateUserRequest,
     UpdateUserRequest,
@@ -35,13 +41,62 @@ def _to_user_response(
     )
 
 
+def _to_user_page_response(
+    page: Page[User],
+) -> PageResponse[UserResponse]:
+    return PageResponse[UserResponse](
+        items=[
+            _to_user_response(
+                user=user,
+            )
+            for user in page.items
+        ],
+        offset=page.offset,
+        limit=page.limit,
+        total=page.total,
+    )
+
+
 def create_router(
     user_input_port: UserInputPort,
+    list_query_dependency: Callable[..., ListQuery],
 ) -> APIRouter:
     router = APIRouter(
         prefix="/user",
         tags=["User"],
     )
+
+    @router.get(
+        path="/list",
+        response_model=PageResponse[UserResponse],
+        status_code=status.HTTP_200_OK,
+        description=(
+            "Endpoint used to list persisted active users with offset/limit "
+            "pagination. Soft-deleted users are excluded, and the response "
+            "returns items together with offset, limit and total."
+        ),
+        responses={
+            200: {
+                "description": (
+                    "The paginated user collection was returned successfully."
+                ),
+            },
+            422: {
+                "description": "The pagination query parameters failed validation.",
+            },
+        },
+        summary="List Users",
+    )
+    async def list_users(
+        list_query: Annotated[ListQuery, Depends(list_query_dependency)],
+    ) -> PageResponse[UserResponse]:
+        page = await user_input_port.list_users(
+            list_query=list_query,
+        )
+
+        return _to_user_page_response(
+            page=page,
+        )
 
     @router.get(
         path="",

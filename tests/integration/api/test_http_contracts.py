@@ -18,6 +18,7 @@ from src.core.domain.user import (
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.user_input_port import UserInputPort
+from src.core.shared import ListQuery, Page
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
 
@@ -63,6 +64,17 @@ class _ReadyHealthzInputPortStub(HealthzInputPort):
 
 
 class _UserInputPortStub(UserInputPort):
+    async def list_users(
+        self,
+        list_query: ListQuery,
+    ) -> Page[User]:
+        return Page[User](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
     async def get_user(
         self,
         email,
@@ -159,6 +171,7 @@ async def test_openapi_endpoint_exposes_expected_metadata():
     assert any(tag["name"] == "User" for tag in openapi_schema["tags"])
 
     user_collection_path = openapi_schema["paths"]["/user"]
+    user_list_path = openapi_schema["paths"]["/user/list"]
 
     assert "post" in user_collection_path
     assert "get" in user_collection_path
@@ -185,6 +198,12 @@ async def test_openapi_endpoint_exposes_expected_metadata():
     assert "409" in user_collection_path["put"]["responses"]
     assert "204" in user_collection_path["delete"]["responses"]
     assert "404" in user_collection_path["delete"]["responses"]
+    assert "get" in user_list_path
+    assert {parameter["name"] for parameter in user_list_path["get"]["parameters"]} == {
+        "offset",
+        "limit",
+    }
+    assert "200" in user_list_path["get"]["responses"]
 
 
 @pytest.mark.anyio
