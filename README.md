@@ -105,7 +105,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - The HTTP `sort` contract is a comma-separated string such as `sort=-created_at,+email`. When a term omits the prefix, `+` is assumed.
 - The current HTTP defaults are `offset=0`, `limit=settings.fastapi.pagination_default_limit` and `limit<=settings.fastapi.pagination_max_limit`.
 - The first concrete paginated collection endpoint is `GET /user/list`. It reuses the shared pagination primitives and returns `PageResponse[UserResponse]`.
-- For `GET /user/list`, sortable public fields currently come from `UserResponse`, the default functional order is `created_at DESC`, and the implementation adds a technical `id DESC` tie-break to keep pages stable.
+- For `GET /user/list`, sortable public fields currently come from `UserResponse`, the default functional order is `created_at ASC`, and the implementation adds a technical `id DESC` tie-break to keep pages stable.
 - The user collection endpoint lists only active users; soft-deleted users remain invisible in paginated reads just as they do in normal `GET` flows.
 - Paginated HTTP responses should include `items`, `offset`, `limit` and `total`.
 
