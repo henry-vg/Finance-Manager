@@ -216,6 +216,7 @@ async def test_openapi_endpoint_exposes_expected_metadata():
     assert "-" in sort_parameter["description"]
     assert "created_at" in sort_parameter["description"]
     assert "id" in sort_parameter["description"]
+    assert "Default sort: created_at." in sort_parameter["description"]
 
 
 @pytest.mark.anyio

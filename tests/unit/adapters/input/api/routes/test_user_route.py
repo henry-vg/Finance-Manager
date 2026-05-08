@@ -350,6 +350,57 @@ async def test_list_users_returns_paginated_response() -> None:
 
 
 @pytest.mark.anyio
+async def test_list_users_uses_default_created_at_asc() -> None:
+    user_input_port_stub = _UserInputPortStub()
+    user_input_port_stub.users_by_email["katherine@example.com"] = User(
+        id=3,
+        first_name="Katherine",
+        last_name="Johnson",
+        email="katherine@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1918, 8, 26),
+        created_at=_build_timestamp(year=2026, month=5, day=3),
+        updated_at=_build_timestamp(year=2026, month=5, day=3),
+    )
+    user_input_port_stub.users_by_email["ada@example.com"] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=1),
+    )
+    app = _create_test_app(user_input_port_stub)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/user/list",
+            params={
+                "offset": 0,
+                "limit": 1,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["email"] == "ada@example.com"
+    assert user_input_port_stub.list_user_queries == [
+        ListQuery(
+            offset=0,
+            limit=1,
+            sort=(
+                SortTerm(
+                    field="created_at",
+                    direction=SortDirection.ASC,
+                ),
+            ),
+        ),
+    ]
+
+
+@pytest.mark.anyio
 async def test_list_users_accepts_id_as_sort_field() -> None:
     user_input_port_stub = _UserInputPortStub()
     user_input_port_stub.users_by_email["ada@example.com"] = User(

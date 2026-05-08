@@ -437,7 +437,7 @@ async def test_list_users_returns_paginated_response_through_http_app() -> None:
 
 
 @pytest.mark.anyio
-async def test_list_users_uses_default_created_at_desc_through_http_app() -> None:
+async def test_list_users_uses_default_created_at_asc_through_http_app() -> None:
     user_input_port_stub = _UserInputPortStub()
     user_input_port_stub.users_by_email["ada@example.com"] = User(
         id=1,
@@ -472,7 +472,7 @@ async def test_list_users_uses_default_created_at_desc_through_http_app() -> Non
         )
 
     assert response.status_code == 200
-    assert response.json()["items"][0]["email"] == "katherine@example.com"
+    assert response.json()["items"][0]["email"] == "ada@example.com"
     assert user_input_port_stub.list_user_queries == [
         ListQuery(
             offset=0,
@@ -480,7 +480,7 @@ async def test_list_users_uses_default_created_at_desc_through_http_app() -> Non
             sort=(
                 SortTerm(
                     field="created_at",
-                    direction=SortDirection.DESC,
+                    direction=SortDirection.ASC,
                 ),
             ),
         ),
