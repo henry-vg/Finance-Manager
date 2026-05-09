@@ -1,16 +1,16 @@
 from dataclasses import dataclass
 from datetime import date, datetime
-from enum import StrEnum
+from enum import IntEnum
 
 
-class UserSortableField(StrEnum):
-    ID = "id"
-    FIRST_NAME = "first_name"
-    LAST_NAME = "last_name"
-    EMAIL = "email"
-    BIRTH_DATE = "birth_date"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
+class UserSortableField(IntEnum):
+    ID = 1
+    FIRST_NAME = 2
+    LAST_NAME = 3
+    EMAIL = 4
+    BIRTH_DATE = 5
+    CREATED_AT = 6
+    UPDATED_AT = 7
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from typing import Any
 
 import pytest
@@ -13,6 +13,11 @@ class _SortableField(StrEnum):
     ID = "id"
     NAME = "name"
     CREATED_AT = "created_at"
+
+
+class _InternalSortableField(IntEnum):
+    ID = 1
+    CREATED_AT = 2
 
 
 def _build_sort_columns() -> Mapping[_SortableField, Any]:
@@ -118,3 +123,26 @@ def test_build_order_clauses_rejects_unsupported_sort_field() -> None:
             sort_field_enum=_SortableField,
             sort_columns=_build_sort_columns(),
         )
+
+
+def test_build_order_clauses_supports_name_derived_internal_enum_fields() -> None:
+    clauses = build_order_clauses(
+        sort_terms=(
+            SortTerm(
+                field=_InternalSortableField.CREATED_AT.name.lower(),
+                direction=SortDirection.DESC,
+            ),
+        ),
+        sort_field_enum=_InternalSortableField,
+        sort_columns={
+            _InternalSortableField.ID: column("id"),
+            _InternalSortableField.CREATED_AT: column("created_at"),
+        },
+        tie_break_field=_InternalSortableField.ID,
+        tie_break_direction=SortDirection.DESC,
+    )
+
+    assert [str(clause) for clause in clauses] == [
+        "created_at DESC",
+        "id DESC",
+    ]

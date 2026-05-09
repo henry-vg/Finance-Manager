@@ -95,7 +95,7 @@ def create_router(
         fields=tuple(
             EndpointSortField(
                 query_name=sort_field.value,
-                item_field_name=UserSortableField[sort_field.name].value,
+                item_field_name=UserSortableField[sort_field.name].name.lower(),
             )
             for sort_field in UserListSortField
         ),

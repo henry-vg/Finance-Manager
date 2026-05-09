@@ -251,7 +251,7 @@ async def test_list_users_returns_paginated_active_users_with_total(
                 limit=1,
                 sort=(
                     SortTerm(
-                        field=UserSortableField.CREATED_AT.value,
+                        field=UserSortableField.CREATED_AT.name.lower(),
                         direction=SortDirection.DESC,
                     ),
                 ),
@@ -374,7 +374,7 @@ async def test_list_users_returns_empty_page_when_no_active_users_exist(
                 limit=10,
                 sort=(
                     SortTerm(
-                        field=UserSortableField.CREATED_AT.value,
+                        field=UserSortableField.CREATED_AT.name.lower(),
                         direction=SortDirection.DESC,
                     ),
                 ),

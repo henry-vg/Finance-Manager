@@ -3,20 +3,20 @@ from enum import StrEnum
 from .base import ApiSchemaBase
 
 
-class HealthzStatus(StrEnum):
+class HealthzStatusResponse(StrEnum):
     OK = "ok"
     NOT_OK = "not_ok"
 
 
 class GetHealthzLivenessResponse(ApiSchemaBase):
-    status: HealthzStatus
+    status: HealthzStatusResponse
 
 
 class GetHealthzReadinessDependencies(ApiSchemaBase):
-    api: HealthzStatus
-    database: HealthzStatus
+    api: HealthzStatusResponse
+    database: HealthzStatusResponse
 
 
 class GetHealthzReadinessResponse(ApiSchemaBase):
-    status: HealthzStatus
+    status: HealthzStatusResponse
     dependencies: GetHealthzReadinessDependencies

@@ -11,7 +11,7 @@ from ..schemas.healthz_schema import (
     GetHealthzLivenessResponse,
     GetHealthzReadinessDependencies,
     GetHealthzReadinessResponse,
-    HealthzStatus,
+    HealthzStatusResponse,
 )
 
 
@@ -42,7 +42,7 @@ def create_router(
         result = await healthz_input_port.get_healthz_liveness()
 
         return GetHealthzLivenessResponse(
-            status=HealthzStatus(result.status.value),
+            status=HealthzStatusResponse[result.status.name],
         )
 
     @router.get(
@@ -77,10 +77,10 @@ def create_router(
         )
 
         return GetHealthzReadinessResponse(
-            status=HealthzStatus(result.status.value),
+            status=HealthzStatusResponse[result.status.name],
             dependencies=GetHealthzReadinessDependencies(
-                api=HealthzStatus(result.dependencies.api.value),
-                database=HealthzStatus(result.dependencies.database.value),
+                api=HealthzStatusResponse[result.dependencies.api.name],
+                database=HealthzStatusResponse[result.dependencies.database.name],
             ),
         )
 

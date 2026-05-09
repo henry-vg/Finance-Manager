@@ -170,8 +170,20 @@ async def test_openapi_endpoint_exposes_expected_metadata():
     assert any(tag["name"] == "HealthZ" for tag in openapi_schema["tags"])
     assert any(tag["name"] == "User" for tag in openapi_schema["tags"])
 
+    healthz_liveness_path = openapi_schema["paths"]["/healthz/liveness"]
+    healthz_readiness_path = openapi_schema["paths"]["/healthz/readiness"]
     user_collection_path = openapi_schema["paths"]["/user"]
     user_list_path = openapi_schema["paths"]["/user/list"]
+    healthz_status_schema = openapi_schema["components"]["schemas"][
+        "HealthzStatusResponse"
+    ]
+
+    assert "get" in healthz_liveness_path
+    assert "get" in healthz_readiness_path
+    assert "200" in healthz_liveness_path["get"]["responses"]
+    assert "200" in healthz_readiness_path["get"]["responses"]
+    assert "503" in healthz_readiness_path["get"]["responses"]
+    assert healthz_status_schema["enum"] == ["ok", "not_ok"]
 
     assert "post" in user_collection_path
     assert "get" in user_collection_path

@@ -15,6 +15,11 @@ class _UnhealthyDatabaseHealthOutputPortStub(DatabaseHealthOutputPort):
         return HealthzStatus.NOT_OK
 
 
+def test_healthz_status_is_domain_owned_and_not_http_text() -> None:
+    assert isinstance(HealthzStatus.OK.value, int)
+    assert isinstance(HealthzStatus.NOT_OK.value, int)
+
+
 @pytest.mark.anyio
 async def test_healthz_usecase_execute_returns_healthy():
     use_case = HealthzUseCase(

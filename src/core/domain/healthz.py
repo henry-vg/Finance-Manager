@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import IntEnum
 
 
-class HealthzStatus(StrEnum):
-    OK = "ok"
-    NOT_OK = "not_ok"
+class HealthzStatus(IntEnum):
+    OK = 1
+    NOT_OK = 2
 
 
 @dataclass(frozen=True)

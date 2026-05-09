@@ -57,9 +57,14 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Use cases use the `UseCase` suffix and live in `src/core/usecases/`, for example `UserUseCase` and `HealthzUseCase`.
 - Core contracts use the `InputPort` and `OutputPort` suffixes and live in `src/core/ports/`.
 - Infrastructure concretes include the technology in the name when that matters, for example `SQLAlchemyPostgresUnitOfWork`, `SQLAlchemyUserOutputAdapter` and `ScryptPasswordHasher`.
+- Aggregate persistence modules may still use local file names such as `repository.py` even when the exported concrete class uses the `OutputAdapter` suffix. The file name describes the persistence role inside the aggregate module; the class name still carries the architectural role.
 - SQLAlchemy table mappings use the `Record` suffix, for example `UserRecord`.
 - Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
 - Exceptions should communicate the layer they belong to. Domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
+- Enum representation depends on ownership. If a string value is part of an external contract, the boundary-owning layer should define it explicitly instead of leaking another layer's enum serialization.
+- Prefer names that match the scope of the concern. Public endpoint slices may use established transport-oriented names, while narrower technical collaborators should use more precise local names when they describe an implementation detail rather than the public feature.
+- Keep behavior names, shared primitive names and transport concern names distinct. Prefer verbs for operations, neutral nouns for reusable core building blocks, and transport-oriented nouns for adapter-specific concerns.
+- When naming generic fallback or deterministic secondary behavior, prefer one stable shared prefix instead of mixing near-synonyms across the codebase. In the current codebase, `tie_break_*` is the canonical vocabulary for that kind of concern.
 - Prefer f-strings over `.format()` for string interpolation.
 - Prefer `dataclass` for simple internal data carriers with little or no validation behavior.
 - Prefer inheriting from Pydantic `BaseModel` whenever a structure needs more robust validation, parsing or serialization behavior, even when the type is reused outside HTTP boundaries.
@@ -96,6 +101,11 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - API schemas and responses should expose the transport contract, not persistence internals. Password fields, password hashes and internal persistence details must not leak to responses.
 - Route handlers should stay thin: validate/parse input, call the input port, translate known domain errors, and map the result to the response schema.
 - Small explicit mapper functions such as `_to_user_response(...)` and `_to_domain_user(...)` are preferred over implicit magic conversions.
+- The same applies to enums at the boundary: domain enums must not define HTTP response text just because the current adapter serializes them.
+- When an enum value is part of the public HTTP contract, the adapter or schema layer owns that textual representation and maps to it explicitly.
+- When the domain enum and the boundary enum intentionally share member names, prefer direct enum-to-enum conversion by name, such as `ResponseEnum[domain_value.name]`, instead of maintaining a manual mapping table.
+- The same rule applies to non-response contracts. If the adapter exposes a public sort field enum and the core owns a separate internal sort enum, keep the public text in the adapter and derive the core-facing identifier from the internal enum itself rather than from a duplicated string value.
+- Operational and protocol enums whose string value is the interface itself may remain `StrEnum`. Current examples include settings/logging enums and sort-related transport identifiers.
 - Timestamps exposed by the API must be serialized in UTC using the centralized API schema conventions.
 - Shared pagination follows the same split: `src/core/shared/listing.py` owns agnostic list types such as `ListQuery` and `Page[T]`, while the HTTP adapter owns transport-facing types such as `PageResponse[T]`.
 - The central HTTP pagination parser lives in the adapter layer and is responsible for translating query params into the core list query type.
@@ -124,6 +134,19 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Integration tests should validate real collaboration between components, especially HTTP flows and Postgres persistence behavior.
 - Fixed-response test doubles should use the `Stub` suffix.
 - Architectural rules that must remain true across the repository belong in `tests/architecture/`.
+
+### Implementation Guidance
+
+- Prefer the smallest change that fixes the real problem at the owning layer instead of compensating for it from a neighboring layer.
+- Prefer explicit code over clever indirection. Small mapper functions, explicit enum conversions and direct wiring are usually better than magic helpers that hide control flow.
+- Do not introduce a shared abstraction on first use unless the ownership boundary is already clear and local duplication is actively causing confusion. A second real use case is usually the right moment to extract.
+- Keep policy and defaults in the layer that owns the contract. Adapters may choose HTTP defaults and public field names; infra should not silently invent fallback behavior for missing application decisions.
+- Keep transport contracts, domain semantics and persistence mechanics separate even when the data looks similar. Similar shape is not enough reason to collapse ownership boundaries.
+- Prefer extending an existing shared primitive or helper when the new behavior is genuinely the same concern. Do not create parallel shapes for pagination, filtering, mapping or error handling when the repository already has an established home for that concern.
+- When adding generic capabilities, extract only the mechanism that is truly shared. Keep aggregate-specific vocabulary, field maps and business decisions local to the aggregate.
+- New names should align with existing canonical vocabulary in the repository. When a concept already has an established prefix or suffix, reuse it instead of introducing a near-synonym.
+- Changes that affect public contracts, architectural conventions or cross-cutting rules should update the README in the same cycle.
+- Changes should leave behind focused tests for the touched behavior. Prefer the narrowest test that proves the decision, then rely on the broader suite as a safety net.
 
 
 ## How To Run Locally
