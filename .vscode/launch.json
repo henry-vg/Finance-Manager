@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "API: Run (DevContainer)",
+      "name": "FastAPI: Run (DevContainer)",
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",

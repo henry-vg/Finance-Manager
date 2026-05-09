@@ -1,7 +1,7 @@
 {
     "name": "finance-manager-devcontainer",
     "dockerComposeFile": "../docker/dev/docker-compose.yml",
-    "service": "api",
+    "service": "fastapi",
     "workspaceFolder": "/app",
     "customizations": {
         "vscode": {
@@ -19,7 +19,7 @@
     },
     "runServices": [
         "postgres",
-        "api"
+        "fastapi"
     ],
     "forwardPorts": [
         5432,
@@ -30,7 +30,7 @@
             "label": "FinanceManagerPostgres"
         },
         "8000": {
-            "label": "FinanceManagerAPI"
+            "label": "FinanceManagerFastAPI"
         }
     },
     "mounts": [
