@@ -25,7 +25,7 @@ class HealthzUseCase(HealthzInputPort):
     async def get_healthz_readiness(
         self,
     ) -> HealthzReadiness:
-        api_server_status = self._get_api_server_status()
+        api_server_status = HealthzStatus.OK
         database_status = await self._database_health_output_port.get_database_status()
 
         status = (
@@ -47,8 +47,3 @@ class HealthzUseCase(HealthzInputPort):
                 database=database_status,
             ),
         )
-
-    def _get_api_server_status(
-        self,
-    ) -> HealthzStatus:
-        return HealthzStatus.OK
