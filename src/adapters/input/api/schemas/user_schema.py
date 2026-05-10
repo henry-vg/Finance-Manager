@@ -20,9 +20,9 @@ class UpdateUserRequest(ApiSchemaBase):
 
 
 class UserResponse(ApiSchemaBase):
+    created_at: datetime
+    updated_at: datetime
     first_name: str
     last_name: str
     email: str
     birth_date: date
-    created_at: datetime
-    updated_at: datetime

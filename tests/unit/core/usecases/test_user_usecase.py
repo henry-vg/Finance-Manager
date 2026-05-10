@@ -11,7 +11,9 @@ from src.core.domain.user import (
     UserEmailConflictError,
     UserNotFoundError,
 )
+from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
 from src.core.ports.output.password_hasher_output_port import PasswordHasherOutputPort
+from src.core.ports.output.statement_cycle_output_port import StatementCycleOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
@@ -239,6 +241,68 @@ class _UserOutputPortStub(UserOutputPort):
         self.users_by_id.pop(user_id, None)
 
 
+class _UnusedLedgerAccountOutputPortStub(LedgerAccountOutputPort):
+    async def list_ledger_accounts(self, list_query):
+        del list_query
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+    async def get_ledger_account_by_id(self, ledger_account_id):
+        del ledger_account_id
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+    async def get_ledger_account_by_id_including_deleted(self, ledger_account_id):
+        del ledger_account_id
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+    async def create_ledger_account(self, new_ledger_account):
+        del new_ledger_account
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+    async def update_ledger_account(self, ledger_account_id, changes):
+        del ledger_account_id
+        del changes
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+    async def soft_delete_ledger_account(self, ledger_account_id):
+        del ledger_account_id
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+    async def hard_delete_ledger_account(self, ledger_account_id):
+        del ledger_account_id
+        raise RuntimeError("ledger_accounts output port is unused in user tests")
+
+
+class _UnusedStatementCycleOutputPortStub(StatementCycleOutputPort):
+    async def list_statement_cycles(self, list_query):
+        del list_query
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+    async def get_statement_cycle_by_id(self, statement_cycle_id):
+        del statement_cycle_id
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+    async def get_statement_cycle_by_id_including_deleted(self, statement_cycle_id):
+        del statement_cycle_id
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+    async def create_statement_cycle(self, new_statement_cycle):
+        del new_statement_cycle
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+    async def update_statement_cycle(self, statement_cycle_id, changes):
+        del statement_cycle_id
+        del changes
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+    async def soft_delete_statement_cycle(self, statement_cycle_id):
+        del statement_cycle_id
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+    async def hard_delete_statement_cycle(self, statement_cycle_id):
+        del statement_cycle_id
+        raise RuntimeError("statement_cycles output port is unused in user tests")
+
+
 class _UnusedTagOutputPortStub(TagOutputPort):
     async def list_tags(self, list_query):
         del list_query
@@ -276,9 +340,19 @@ class _UnitOfWorkOutputPortStub(UnitOfWorkOutputPort):
         user_output_port: _UserOutputPortStub,
     ) -> None:
         self._user_output_port = user_output_port
+        self._ledger_account_output_port = _UnusedLedgerAccountOutputPortStub()
+        self._statement_cycle_output_port = _UnusedStatementCycleOutputPortStub()
         self._tag_output_port = _UnusedTagOutputPortStub()
         self.commit_calls = 0
         self.rollback_calls = 0
+
+    @property
+    def ledger_accounts(self) -> LedgerAccountOutputPort:
+        return self._ledger_account_output_port
+
+    @property
+    def statement_cycles(self) -> StatementCycleOutputPort:
+        return self._statement_cycle_output_port
 
     @property
     def tags(self) -> TagOutputPort:

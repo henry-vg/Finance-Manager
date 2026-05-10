@@ -1,9 +1,17 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.ports.output import UnitOfWorkOutputPort
+from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
+from src.core.ports.output.statement_cycle_output_port import StatementCycleOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
 from src.core.ports.output.user_output_port import UserOutputPort
+from src.infra.postgres.aggregates.ledger_account import (
+    SQLAlchemyLedgerAccountOutputAdapter,
+)
+from src.infra.postgres.aggregates.statement_cycle import (
+    SQLAlchemyStatementCycleOutputAdapter,
+)
 from src.infra.postgres.aggregates.tag import SQLAlchemyTagOutputAdapter
 from src.infra.postgres.aggregates.user import SQLAlchemyUserOutputAdapter
 
@@ -30,9 +38,25 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
     ) -> None:
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
+        self._ledger_accounts: LedgerAccountOutputPort | None = None
+        self._statement_cycles: StatementCycleOutputPort | None = None
         self._tags: TagOutputPort | None = None
         self._users: UserOutputPort | None = None
         self._is_closed = False
+
+    @property
+    def ledger_accounts(self) -> LedgerAccountOutputPort:
+        if self._ledger_accounts is None:
+            raise UnitOfWorkHasNotBeenEnteredError()
+
+        return self._ledger_accounts
+
+    @property
+    def statement_cycles(self) -> StatementCycleOutputPort:
+        if self._statement_cycles is None:
+            raise UnitOfWorkHasNotBeenEnteredError()
+
+        return self._statement_cycles
 
     @property
     def tags(self) -> TagOutputPort:
@@ -56,6 +80,8 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
             raise UnitOfWorkCannotBeReusedAfterExitError()
 
         self._session = self._session_factory()
+        self._ledger_accounts = SQLAlchemyLedgerAccountOutputAdapter(self._session)
+        self._statement_cycles = SQLAlchemyStatementCycleOutputAdapter(self._session)
         self._tags = SQLAlchemyTagOutputAdapter(self._session)
         self._users = SQLAlchemyUserOutputAdapter(self._session)
         return self
@@ -82,6 +108,8 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
                 await session.close()
             finally:
                 self._session = None
+                self._ledger_accounts = None
+                self._statement_cycles = None
                 self._tags = None
                 self._users = None
                 self._is_closed = True

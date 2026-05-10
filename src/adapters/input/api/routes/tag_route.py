@@ -28,9 +28,9 @@ from ..schemas.tag_schema import CreateTagRequest, TagResponse, UpdateTagRequest
 
 class TagListSortField(StrEnum):
     ID = "id"
-    TITLE = "title"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
+    TITLE = "title"
 
 
 def _to_tag_response(
@@ -156,7 +156,9 @@ def create_router(
                 tag_id=id,
             )
 
-        return _to_tag_response(tag=tag,)
+        return _to_tag_response(
+            tag=tag,
+        )
 
     @router.post(
         path="",
@@ -182,7 +184,9 @@ def create_router(
             ),
         )
 
-        return _to_tag_response(tag=tag,)
+        return _to_tag_response(
+            tag=tag,
+        )
 
     @router.put(
         path="",

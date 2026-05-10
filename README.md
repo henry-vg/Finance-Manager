@@ -63,6 +63,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
 - Custom domain/application exceptions must use the `Error` suffix. Exceptions should communicate the layer they belong to: domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
 - Enum representation depends on ownership. If a string value is part of an external contract, the boundary-owning layer should define it explicitly instead of leaking another layer's enum serialization.
+- Closed vocabularies owned by the core should stay enum-typed across the internal stack instead of degrading into loose strings in ports or persistence mappings. The current `LedgerAccount` decisions follow this rule for `type`, `kind` and `currency`.
 - Prefer names that match the scope of the concern. Public endpoint slices may use established transport-oriented names, while narrower technical collaborators should use more precise local names when they describe an implementation detail rather than the public feature.
 - Keep behavior names, shared primitive names and transport concern names distinct. Prefer verbs for operations, neutral nouns for reusable core building blocks, and transport-oriented nouns for adapter-specific concerns.
 - When naming generic fallback or deterministic secondary behavior, prefer one stable shared prefix instead of mixing near-synonyms across the codebase. In the current codebase, `tie_break_*` is the canonical vocabulary for that kind of concern.
@@ -96,6 +97,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Audit timestamps and `deleted_at` are database-owned. The application signals state changes; the database is responsible for writing the authoritative timestamps.
 - Soft-deleted rows are invisible to normal reads and updates. Hard delete must be an explicit opt-in behavior when the API or use case requires physical removal.
 - Constraint names should be stable and explicit when they carry business meaning, such as the unique email constraint on `users`.
+- When the database persists a core-owned closed vocabulary, prefer typed SQLAlchemy enums backed by native Postgres enums instead of unconstrained `VARCHAR` columns. The current `ledger_accounts.type`, `ledger_accounts.kind` and `ledger_accounts.currency` columns are the reference pattern.
 
 ### API and Mapping Rules
 
@@ -150,6 +152,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - New names should align with existing canonical vocabulary in the repository. When a concept already has an established prefix or suffix, reuse it instead of introducing a near-synonym.
 - Changes that affect public contracts, architectural conventions or cross-cutting rules should update the README in the same cycle.
 - Changes should leave behind focused tests for the touched behavior. Prefer the narrowest test that proves the decision, then rely on the broader suite as a safety net.
+- Cross-aggregate business invariants belong in the use case that owns the workflow, not in the HTTP route or repository. The current reference rule is `StatementCycle`: it may only reference a `LedgerAccount` with `type == LIABILITY` and `kind == CREDIT_CARD`, and that validation is enforced in `StatementCycleUseCase` inside the same unit-of-work boundary.
 
 
 ## How To Run Locally

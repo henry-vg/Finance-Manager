@@ -12,10 +12,8 @@ from src.core.domain.healthz import (
 )
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
-    Currency,
     LedgerAccount,
-    LedgerAccountKind,
-    LedgerAccountType,
+    LedgerAccountNotFoundError,
     UpdateLedgerAccountData,
 )
 from src.core.domain.statement_cycle import (
@@ -23,11 +21,11 @@ from src.core.domain.statement_cycle import (
     StatementCycle,
     UpdateStatementCycleData,
 )
-from src.core.domain.tag import CreateTagData, Tag, TagNotFoundError, UpdateTagData
+from src.core.domain.tag import CreateTagData, Tag, UpdateTagData
 from src.core.domain.user import CreateUserData, UpdateUserData, User
 from src.core.ports.input.healthz_input_port import HealthzInputPort
-from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.statement_cycle_input_port import StatementCycleInputPort
+from src.core.ports.input.tag_input_port import TagInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page
 from src.infra.fastapi.app import create_http_app
@@ -52,104 +50,45 @@ class _ReadyHealthzInputPortStub(HealthzInputPort):
         )
 
 
-class _TagInputPortStub:
+class _LedgerAccountInputPortStub:
     def __init__(self) -> None:
-        self.tags_by_id: dict[int, Tag] = {}
-        self.soft_deleted_tag_ids: set[int] = set()
+        self.ledger_accounts_by_id: dict[int, LedgerAccount] = {}
+        self.soft_deleted_ledger_account_ids: set[int] = set()
         self.delete_calls: list[tuple[int, bool]] = []
-        self.list_tag_queries: list[ListQuery] = []
-        self._next_tag_id = 1
+        self.list_ledger_account_queries: list[ListQuery] = []
+        self._next_ledger_account_id = 1
 
-    async def list_tags(self, list_query: ListQuery) -> Page[Tag]:
-        self.list_tag_queries.append(list_query)
-        active_tags = [
-            tag
-            for tag_id, tag in self.tags_by_id.items()
-            if tag_id not in self.soft_deleted_tag_ids
+    async def list_ledger_accounts(self, list_query: ListQuery) -> Page[LedgerAccount]:
+        self.list_ledger_account_queries.append(list_query)
+        active_ledger_accounts = [
+            ledger_account
+            for ledger_account_id, ledger_account in self.ledger_accounts_by_id.items()
+            if ledger_account_id not in self.soft_deleted_ledger_account_ids
         ]
-        active_tags.sort(key=lambda tag: tag.id)
-        return Page[Tag](
-            items=active_tags[list_query.offset : list_query.offset + list_query.limit],
-            offset=list_query.offset,
-            limit=list_query.limit,
-            total=len(active_tags),
-        )
-
-    async def get_tag(self, tag_id: int) -> Tag:
-        if tag_id in self.soft_deleted_tag_ids or tag_id not in self.tags_by_id:
-            raise TagNotFoundError()
-        return self.tags_by_id[tag_id]
-
-    async def create_tag(self, data: CreateTagData) -> Tag:
-        tag = Tag(
-            id=self._next_tag_id,
-            title=data.title,
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(1),
-        )
-        self.tags_by_id[tag.id] = tag
-        self._next_tag_id += 1
-        return tag
-
-    async def update_tag(self, tag_id: int, data: UpdateTagData) -> Tag:
-        current = await self.get_tag(tag_id)
-        updated = Tag(
-            id=current.id,
-            title=data.title,
-            created_at=current.created_at,
-            updated_at=_build_timestamp(2),
-        )
-        self.tags_by_id[tag_id] = updated
-        return updated
-
-    async def delete_tag(self, tag_id: int, hard_delete: bool = False) -> None:
-        self.delete_calls.append((tag_id, hard_delete))
-        if tag_id in self.soft_deleted_tag_ids:
-            if hard_delete:
-                self.soft_deleted_tag_ids.remove(tag_id)
-                self.tags_by_id.pop(tag_id, None)
-                return
-            raise TagNotFoundError()
-        if tag_id not in self.tags_by_id:
-            raise TagNotFoundError()
-        if hard_delete:
-            self.tags_by_id.pop(tag_id, None)
-            return
-        self.soft_deleted_tag_ids.add(tag_id)
-
-
-class _LedgerAccountInputPortStub(LedgerAccountInputPort):
-    async def list_ledger_accounts(
-        self,
-        list_query: ListQuery,
-    ) -> Page[LedgerAccount]:
+        active_ledger_accounts.sort(key=lambda ledger_account: ledger_account.id)
         return Page[LedgerAccount](
-            items=[],
+            items=active_ledger_accounts[
+                list_query.offset : list_query.offset + list_query.limit
+            ],
             offset=list_query.offset,
             limit=list_query.limit,
-            total=0,
+            total=len(active_ledger_accounts),
         )
 
-    async def get_ledger_account(
-        self,
-        ledger_account_id: int,
-    ) -> LedgerAccount:
-        return LedgerAccount(
-            id=ledger_account_id,
-            title="Main Account",
-            type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency=Currency.BRL,
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(2),
-        )
+    async def get_ledger_account(self, ledger_account_id: int) -> LedgerAccount:
+        if (
+            ledger_account_id in self.soft_deleted_ledger_account_ids
+            or ledger_account_id not in self.ledger_accounts_by_id
+        ):
+            raise LedgerAccountNotFoundError()
+        return self.ledger_accounts_by_id[ledger_account_id]
 
     async def create_ledger_account(
         self,
         data: CreateLedgerAccountData,
     ) -> LedgerAccount:
-        return LedgerAccount(
-            id=1,
+        ledger_account = LedgerAccount(
+            id=self._next_ledger_account_id,
             title=data.title,
             type=data.type,
             kind=data.kind,
@@ -157,30 +96,46 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             created_at=_build_timestamp(1),
             updated_at=_build_timestamp(1),
         )
+        self.ledger_accounts_by_id[ledger_account.id] = ledger_account
+        self._next_ledger_account_id += 1
+        return ledger_account
 
     async def update_ledger_account(
         self,
         ledger_account_id: int,
         data: UpdateLedgerAccountData,
     ) -> LedgerAccount:
-        return LedgerAccount(
-            id=ledger_account_id,
+        current = await self.get_ledger_account(ledger_account_id)
+        updated = LedgerAccount(
+            id=current.id,
             title=data.title,
             type=data.type,
             kind=data.kind,
             currency=data.currency,
-            created_at=_build_timestamp(1),
+            created_at=current.created_at,
             updated_at=_build_timestamp(2),
         )
+        self.ledger_accounts_by_id[ledger_account_id] = updated
+        return updated
 
     async def delete_ledger_account(
         self,
         ledger_account_id: int,
         hard_delete: bool = False,
     ) -> None:
-        del ledger_account_id
-        del hard_delete
-        return None
+        self.delete_calls.append((ledger_account_id, hard_delete))
+        if ledger_account_id in self.soft_deleted_ledger_account_ids:
+            if hard_delete:
+                self.soft_deleted_ledger_account_ids.remove(ledger_account_id)
+                self.ledger_accounts_by_id.pop(ledger_account_id, None)
+                return
+            raise LedgerAccountNotFoundError()
+        if ledger_account_id not in self.ledger_accounts_by_id:
+            raise LedgerAccountNotFoundError()
+        if hard_delete:
+            self.ledger_accounts_by_id.pop(ledger_account_id, None)
+            return
+        self.soft_deleted_ledger_account_ids.add(ledger_account_id)
 
 
 class _StatementCycleInputPortStub(StatementCycleInputPort):
@@ -248,6 +203,45 @@ class _StatementCycleInputPortStub(StatementCycleInputPort):
         return None
 
 
+class _TagInputPortStub(TagInputPort):
+    async def list_tags(self, list_query: ListQuery) -> Page[Tag]:
+        return Page[Tag](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
+    async def get_tag(self, tag_id: int) -> Tag:
+        return Tag(
+            id=tag_id,
+            title="Food",
+            created_at=_build_timestamp(1),
+            updated_at=_build_timestamp(2),
+        )
+
+    async def create_tag(self, data: CreateTagData) -> Tag:
+        return Tag(
+            id=1,
+            title=data.title,
+            created_at=_build_timestamp(1),
+            updated_at=_build_timestamp(1),
+        )
+
+    async def update_tag(self, tag_id: int, data: UpdateTagData) -> Tag:
+        return Tag(
+            id=tag_id,
+            title=data.title,
+            created_at=_build_timestamp(1),
+            updated_at=_build_timestamp(2),
+        )
+
+    async def delete_tag(self, tag_id: int, hard_delete: bool = False) -> None:
+        del tag_id
+        del hard_delete
+        return None
+
+
 class _UserInputPortStub(UserInputPort):
     async def list_users(self, list_query: ListQuery) -> Page[User]:
         return Page[User](
@@ -299,41 +293,58 @@ class _UserInputPortStub(UserInputPort):
         return None
 
 
-def _create_test_app(tag_input_port: _TagInputPortStub) -> FastAPI:
+def _create_test_app(ledger_account_input_port: _LedgerAccountInputPortStub) -> FastAPI:
     return create_http_app(
         settings=load_settings(),
         healthz_input_port=_ReadyHealthzInputPortStub(),
-        ledger_account_input_port=_LedgerAccountInputPortStub(),
+        ledger_account_input_port=ledger_account_input_port,
         statement_cycle_input_port=_StatementCycleInputPortStub(),
-        tag_input_port=tag_input_port,
+        tag_input_port=_TagInputPortStub(),
         user_input_port=_UserInputPortStub(),
     )
 
 
 @pytest.mark.anyio
-async def test_tag_crud_flow_through_http_app() -> None:
-    tag_input_port_stub = _TagInputPortStub()
-    app = _create_test_app(tag_input_port_stub)
+async def test_ledger_account_crud_flow_through_http_app() -> None:
+    ledger_account_input_port_stub = _LedgerAccountInputPortStub()
+    app = _create_test_app(ledger_account_input_port_stub)
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        create_response = await client.post("/tag", json={"title": "Food"})
-        created_id = create_response.json()["id"]
-        get_response = await client.get("/tag", params={"id": created_id})
-        list_response = await client.get("/tag/list")
-        update_response = await client.put(
-            "/tag",
-            params={"id": created_id},
-            json={"title": "Utilities"},
+        create_response = await client.post(
+            "/ledger-account",
+            json={
+                "title": "Main Account",
+                "type": "asset",
+                "kind": "bank_account",
+                "currency": "BRL",
+            },
         )
-        delete_response = await client.delete("/tag", params={"id": created_id})
+        created_id = create_response.json()["id"]
+        get_response = await client.get("/ledger-account", params={"id": created_id})
+        list_response = await client.get("/ledger-account/list")
+        update_response = await client.put(
+            "/ledger-account",
+            params={"id": created_id},
+            json={
+                "title": "Credit Card",
+                "type": "liability",
+                "kind": "credit_card",
+                "currency": "USD",
+            },
+        )
+        delete_response = await client.delete(
+            "/ledger-account",
+            params={"id": created_id},
+        )
 
     assert create_response.status_code == 201
-    assert create_response.json()["title"] == "Food"
+    assert create_response.json()["title"] == "Main Account"
     assert get_response.status_code == 200
     assert get_response.json()["id"] == created_id
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 1
     assert update_response.status_code == 200
-    assert update_response.json()["title"] == "Utilities"
+    assert update_response.json()["title"] == "Credit Card"
+    assert update_response.json()["type"] == "liability"
     assert delete_response.status_code == 204

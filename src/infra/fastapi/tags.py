@@ -9,6 +9,23 @@ openapi_tags = [
         ),
     },
     {
+        "name": "LedgerAccount",
+        "description": (
+            "Ledger account management endpoints for creating, retrieving, "
+            "listing, updating, and deleting financial containers such as bank "
+            "accounts, wallets, and credit cards. Responses include normalized "
+            "UTC audit timestamps."
+        ),
+    },
+    {
+        "name": "StatementCycle",
+        "description": (
+            "Statement cycle management endpoints for organizing billing windows, "
+            "closing dates, and due dates for credit-card ledger accounts. "
+            "Responses include normalized UTC audit timestamps."
+        ),
+    },
+    {
         "name": "Tag",
         "description": (
             "Tag management endpoints for creating, retrieving, listing, "

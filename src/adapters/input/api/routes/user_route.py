@@ -39,12 +39,12 @@ from ..schemas.user_schema import (
 
 class UserListSortField(StrEnum):
     ID = "id"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
     FIRST_NAME = "first_name"
     LAST_NAME = "last_name"
     EMAIL = "email"
     BIRTH_DATE = "birth_date"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
 
 
 def _to_user_response(
