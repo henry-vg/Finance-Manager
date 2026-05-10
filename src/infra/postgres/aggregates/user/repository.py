@@ -8,11 +8,11 @@ from src.core.domain.user import (
     NewUser,
     User,
     UserChanges,
-    UserNotFoundError,
     UserSortableField,
 )
 from src.core.ports.output.user_output_port import (
     UserEmailConflictOutputPortError,
+    UserNotFoundOutputPortError,
     UserOutputPort,
 )
 from src.core.shared import ListQuery, Page, SortDirection
@@ -170,7 +170,7 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         )
 
         if user_record is None:
-            raise UserNotFoundError()
+            raise UserNotFoundOutputPortError()
 
         user_record.first_name = changes.first_name
         user_record.last_name = changes.last_name
@@ -204,7 +204,7 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         )
 
         if user_record is None:
-            raise UserNotFoundError()
+            raise UserNotFoundOutputPortError()
 
         user_record.is_deleted = True
 
@@ -220,7 +220,7 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
         )
 
         if user_record is None:
-            raise UserNotFoundError()
+            raise UserNotFoundOutputPortError()
 
         await self._session.delete(user_record)
         await self._session.flush()

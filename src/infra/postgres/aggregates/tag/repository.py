@@ -3,14 +3,11 @@ from typing import Any, cast
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.domain.tag import (
-    NewTag,
-    Tag,
-    TagChanges,
-    TagNotFoundError,
-    TagSortableField,
+from src.core.domain.tag import NewTag, Tag, TagChanges, TagSortableField
+from src.core.ports.output.tag_output_port import (
+    TagNotFoundOutputPortError,
+    TagOutputPort,
 )
-from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.shared import ListQuery, Page, SortDirection
 
 from ...listing import build_order_clauses
@@ -91,12 +88,12 @@ class SQLAlchemyTagOutputAdapter(TagOutputPort):
         self,
         tag_id: int,
     ) -> Tag | None:
-        tag_record = await self._get_tag_record_by_id(tag_id=tag_id,)
+        tag_record = await self._get_tag_record_by_id(tag_id=tag_id)
 
         if tag_record is None:
             return None
 
-        return _to_domain_tag(tag_record=tag_record,)
+        return _to_domain_tag(tag_record=tag_record)
 
     async def get_tag_by_id_including_deleted(
         self,
@@ -110,7 +107,7 @@ class SQLAlchemyTagOutputAdapter(TagOutputPort):
         if tag_record is None:
             return None
 
-        return _to_domain_tag(tag_record=tag_record,)
+        return _to_domain_tag(tag_record=tag_record)
 
     async def create_tag(
         self,
@@ -123,23 +120,23 @@ class SQLAlchemyTagOutputAdapter(TagOutputPort):
         await self._session.flush()
         await self._session.refresh(tag_record)
 
-        return _to_domain_tag(tag_record=tag_record,)
+        return _to_domain_tag(tag_record=tag_record)
 
     async def update_tag(
         self,
         tag_id: int,
         changes: TagChanges,
     ) -> Tag:
-        tag_record = await self._get_tag_record_by_id(tag_id=tag_id,)
+        tag_record = await self._get_tag_record_by_id(tag_id=tag_id)
 
         if tag_record is None:
-            raise TagNotFoundError()
+            raise TagNotFoundOutputPortError()
 
         tag_record.title = changes.title
         await self._session.flush()
         await self._session.refresh(tag_record)
 
-        return _to_domain_tag(tag_record=tag_record,)
+        return _to_domain_tag(tag_record=tag_record)
 
     async def soft_delete_tag(
         self,
@@ -148,7 +145,7 @@ class SQLAlchemyTagOutputAdapter(TagOutputPort):
         tag_record = await self._get_tag_record_by_id(tag_id=tag_id)
 
         if tag_record is None:
-            raise TagNotFoundError()
+            raise TagNotFoundOutputPortError()
 
         tag_record.is_deleted = True
         await self._session.flush()
@@ -163,7 +160,7 @@ class SQLAlchemyTagOutputAdapter(TagOutputPort):
         )
 
         if tag_record is None:
-            raise TagNotFoundError()
+            raise TagNotFoundOutputPortError()
 
         await self._session.delete(tag_record)
         await self._session.flush()

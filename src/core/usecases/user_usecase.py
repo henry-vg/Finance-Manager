@@ -10,7 +10,10 @@ from src.core.domain.user import (
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.ports.output.password_hasher_output_port import PasswordHasherOutputPort
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
-from src.core.ports.output.user_output_port import UserEmailConflictOutputPortError
+from src.core.ports.output.user_output_port import (
+    UserEmailConflictOutputPortError,
+    UserNotFoundOutputPortError,
+)
 from src.core.shared import ListQuery, Page
 
 
@@ -114,6 +117,8 @@ class UserUseCase(UserInputPort):
                     user_id=current_user.id,
                     changes=changes,
                 )
+            except UserNotFoundOutputPortError as exc:
+                raise UserNotFoundError() from exc
             except UserEmailConflictOutputPortError as exc:
                 raise UserEmailConflictError() from exc
 
@@ -142,12 +147,18 @@ class UserUseCase(UserInputPort):
                 raise UserNotFoundError()
 
             if hard_delete:
-                await unit_of_work.users.hard_delete_user(
-                    user_id=current_user.id,
-                )
+                try:
+                    await unit_of_work.users.hard_delete_user(
+                        user_id=current_user.id,
+                    )
+                except UserNotFoundOutputPortError as exc:
+                    raise UserNotFoundError() from exc
             else:
-                await unit_of_work.users.soft_delete_user(
-                    user_id=current_user.id,
-                )
+                try:
+                    await unit_of_work.users.soft_delete_user(
+                        user_id=current_user.id,
+                    )
+                except UserNotFoundOutputPortError as exc:
+                    raise UserNotFoundError() from exc
 
             await unit_of_work.commit()

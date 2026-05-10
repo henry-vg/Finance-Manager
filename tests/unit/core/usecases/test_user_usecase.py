@@ -19,6 +19,7 @@ from src.core.ports.output.unit_of_work_output_port import (
 )
 from src.core.ports.output.user_output_port import (
     UserEmailConflictOutputPortError,
+    UserNotFoundOutputPortError,
     UserOutputPort,
 )
 from src.core.shared import ListQuery, Page
@@ -191,7 +192,7 @@ class _UserOutputPortStub(UserOutputPort):
         current_user = self.users_by_id.get(user_id)
 
         if current_user is None:
-            raise UserNotFoundError()
+            raise UserNotFoundOutputPortError()
 
         self.updated_users.append((user_id, changes))
 
@@ -221,7 +222,7 @@ class _UserOutputPortStub(UserOutputPort):
         user_id: int,
     ) -> None:
         if user_id not in self.users_by_id:
-            raise UserNotFoundError()
+            raise UserNotFoundOutputPortError()
 
         self.soft_deleted_user_ids.append(user_id)
 
@@ -230,7 +231,7 @@ class _UserOutputPortStub(UserOutputPort):
         user_id: int,
     ) -> None:
         if user_id not in self.users_by_id:
-            raise UserNotFoundError()
+            raise UserNotFoundOutputPortError()
 
         self.hard_deleted_user_ids.append(user_id)
         while user_id in self.soft_deleted_user_ids:
@@ -676,6 +677,37 @@ async def test_update_user_translates_output_port_conflict_to_domain_error() -> 
     )
 
     with pytest.raises(UserEmailConflictError):
+        await use_case.update_user(
+            current_email="ada@example.com",
+            data=_build_update_user_data(),
+        )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.commit_calls == 0
+    assert unit_of_work_output_port.rollback_calls == 1
+
+
+@pytest.mark.anyio
+async def test_update_user_translates_output_port_not_found_to_domain_error() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.users_by_id[1] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::old-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    user_output_port_stub.update_error = UserNotFoundOutputPortError()
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
+
+    with pytest.raises(UserNotFoundError):
         await use_case.update_user(
             current_email="ada@example.com",
             data=_build_update_user_data(),

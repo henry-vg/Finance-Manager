@@ -10,7 +10,10 @@ from src.core.domain.tag import (
     TagNotFoundError,
     UpdateTagData,
 )
-from src.core.ports.output.tag_output_port import TagOutputPort
+from src.core.ports.output.tag_output_port import (
+    TagNotFoundOutputPortError,
+    TagOutputPort,
+)
 from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
     UnitOfWorkOutputPortFactory,
@@ -28,6 +31,8 @@ class _TagOutputPortStub(TagOutputPort):
     def __init__(self) -> None:
         self.tags: dict[int, Tag] = {}
         self.deleted_tag_ids: set[int] = set()
+        self.delete_error: Exception | None = None
+        self.update_error: Exception | None = None
         self.next_id = 1
 
     async def list_tags(self, list_query: ListQuery) -> Page[Tag]:
@@ -64,6 +69,9 @@ class _TagOutputPortStub(TagOutputPort):
         return tag
 
     async def update_tag(self, tag_id: int, changes: TagChanges) -> Tag:
+        if self.update_error is not None:
+            raise self.update_error
+
         current = self.tags[tag_id]
         updated = Tag(
             id=current.id,
@@ -75,9 +83,15 @@ class _TagOutputPortStub(TagOutputPort):
         return updated
 
     async def soft_delete_tag(self, tag_id: int) -> None:
+        if self.delete_error is not None:
+            raise self.delete_error
+
         self.deleted_tag_ids.add(tag_id)
 
     async def hard_delete_tag(self, tag_id: int) -> None:
+        if self.delete_error is not None:
+            raise self.delete_error
+
         self.deleted_tag_ids.discard(tag_id)
         self.tags.pop(tag_id, None)
 
@@ -147,6 +161,22 @@ async def test_update_tag_raises_when_tag_does_not_exist() -> None:
 
 
 @pytest.mark.anyio
+async def test_update_tag_translates_output_port_not_found_to_domain_error() -> None:
+    tags = _TagOutputPortStub()
+    tags.tags[1] = Tag(
+        id=1,
+        title="Food",
+        created_at=_build_timestamp(1),
+        updated_at=_build_timestamp(1),
+    )
+    tags.update_error = TagNotFoundOutputPortError()
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(tags)))
+
+    with pytest.raises(TagNotFoundError):
+        await use_case.update_tag(1, UpdateTagData(title="Utilities"))
+
+
+@pytest.mark.anyio
 async def test_delete_tag_soft_deletes_by_default() -> None:
     tags = _TagOutputPortStub()
     created = await tags.create_tag(NewTag(title="Food"))
@@ -157,6 +187,17 @@ async def test_delete_tag_soft_deletes_by_default() -> None:
 
     assert created.id in tags.deleted_tag_ids
     assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_delete_tag_translates_output_port_not_found_to_domain_error() -> None:
+    tags = _TagOutputPortStub()
+    created = await tags.create_tag(NewTag(title="Food"))
+    tags.delete_error = TagNotFoundOutputPortError()
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(tags)))
+
+    with pytest.raises(TagNotFoundError):
+        await use_case.delete_tag(created.id)
 
 
 @pytest.mark.anyio

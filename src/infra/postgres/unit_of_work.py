@@ -8,6 +8,21 @@ from src.infra.postgres.aggregates.tag import SQLAlchemyTagOutputAdapter
 from src.infra.postgres.aggregates.user import SQLAlchemyUserOutputAdapter
 
 
+class UnitOfWorkHasNotBeenEnteredError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("Unit of work has not been entered")
+
+
+class UnitOfWorkIsAlreadyActiveError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("Unit of work is already active")
+
+
+class UnitOfWorkCannotBeReusedAfterExitError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("Unit of work cannot be reused after exit")
+
+
 class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
     def __init__(
         self,
@@ -22,23 +37,23 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
     @property
     def tags(self) -> TagOutputPort:
         if self._tags is None:
-            raise RuntimeError("Unit of work has not been entered")
+            raise UnitOfWorkHasNotBeenEnteredError()
 
         return self._tags
 
     @property
     def users(self) -> UserOutputPort:
         if self._users is None:
-            raise RuntimeError("Unit of work has not been entered")
+            raise UnitOfWorkHasNotBeenEnteredError()
 
         return self._users
 
     async def __aenter__(self) -> "SQLAlchemyPostgresUnitOfWork":
         if self._session is not None:
-            raise RuntimeError("Unit of work is already active")
+            raise UnitOfWorkIsAlreadyActiveError()
 
         if self._is_closed:
-            raise RuntimeError("Unit of work cannot be reused after exit")
+            raise UnitOfWorkCannotBeReusedAfterExitError()
 
         self._session = self._session_factory()
         self._tags = SQLAlchemyTagOutputAdapter(self._session)
@@ -73,7 +88,7 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
 
     def _require_session(self) -> AsyncSession:
         if self._session is None:
-            raise RuntimeError("Unit of work has not been entered")
+            raise UnitOfWorkHasNotBeenEnteredError()
 
         return self._session
 

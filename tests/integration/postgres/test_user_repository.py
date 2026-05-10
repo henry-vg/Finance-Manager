@@ -8,7 +8,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.core.domain.user import NewUser, UserChanges, UserSortableField
-from src.core.ports.output.user_output_port import UserEmailConflictOutputPortError
+from src.core.ports.output.user_output_port import (
+    UserEmailConflictOutputPortError,
+    UserNotFoundOutputPortError,
+)
 from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
     SQLAlchemyPostgresUnitOfWorkFactory,
@@ -471,6 +474,20 @@ async def test_hard_delete_user_removes_soft_deleted_row(
 
     assert user_record is None
     assert included_user is None
+
+
+@pytest.mark.anyio
+async def test_update_user_raises_output_port_not_found_when_record_is_missing(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyUserOutputAdapter(session)
+
+        with pytest.raises(UserNotFoundOutputPortError):
+            await repository.update_user(
+                user_id=999,
+                changes=_build_user_changes(),
+            )
 
 
 @pytest.mark.anyio

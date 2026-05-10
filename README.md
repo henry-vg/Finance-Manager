@@ -54,13 +54,14 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 ### Naming
 
 - Domain concepts use singular names, for example `User`, `NewUser`, `UserChanges` and `src/core/domain/user.py`.
+- CRUD-oriented domain input DTOs should use `Create*Data` for create flows and `Update*Data` for update flows. Use cases should translate `Create*Data` into `New*` and `Update*Data` into `*Changes` before calling output ports.
 - Use cases use the `UseCase` suffix and live in `src/core/usecases/`, for example `UserUseCase` and `HealthzUseCase`.
 - Core contracts use the `InputPort` and `OutputPort` suffixes and live in `src/core/ports/`.
 - Infrastructure concretes include the technology in the name when that matters, for example `SQLAlchemyPostgresUnitOfWork`, `SQLAlchemyUserOutputAdapter` and `ScryptPasswordHasher`.
 - Aggregate persistence modules may still use local file names such as `repository.py` even when the exported concrete class uses the `OutputAdapter` suffix. The file name describes the persistence role inside the aggregate module; the class name still carries the architectural role.
 - SQLAlchemy table mappings use the `Record` suffix, for example `UserRecord`.
 - Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
-- Exceptions should communicate the layer they belong to. Domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
+- Custom domain/application exceptions must use the `Error` suffix. Exceptions should communicate the layer they belong to: domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
 - Enum representation depends on ownership. If a string value is part of an external contract, the boundary-owning layer should define it explicitly instead of leaking another layer's enum serialization.
 - Prefer names that match the scope of the concern. Public endpoint slices may use established transport-oriented names, while narrower technical collaborators should use more precise local names when they describe an implementation detail rather than the public feature.
 - Keep behavior names, shared primitive names and transport concern names distinct. Prefer verbs for operations, neutral nouns for reusable core building blocks, and transport-oriented nouns for adapter-specific concerns.
@@ -88,6 +89,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - The core does not open database sessions directly. It asks for a `UnitOfWorkOutputPortFactory` and works through the repositories exposed by the active unit of work.
 - The concrete Unit of Work lives in infra and is technology-specific. The core sees only the port.
 - Repositories are session-bound. They may `flush()` and `refresh()` entities, but they do not `commit()` or `rollback()` transactions.
+- Repositories must not raise domain/application errors directly. They should either return `None` for absence on read-style operations or raise `*OutputPortError` for persistence-bound failures that the use case must translate.
 - Aggregates that participate in the same transaction must be exposed explicitly on both the core `UnitOfWorkOutputPort` and the concrete `SQLAlchemyPostgresUnitOfWork`.
 - Shared Postgres infrastructure stays at the top of `src/infra/postgres/`; aggregate-specific persistence stays under `src/infra/postgres/aggregates/`.
 - `PostgresPersistedRecordMixin` centralizes cross-table persisted fields such as `id`, `created_at`, `updated_at`, `is_deleted` and `deleted_at`.
@@ -131,6 +133,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 ### Testing Rules
 
 - Unit tests should mirror the source boundary they protect.
+- Unit-test folders should follow the same structure as the application folders they cover. For example, tests for `src/core/shared/` should live under `tests/unit/core/shared/`, not directly under `tests/unit/core/`.
 - Integration tests should validate real collaboration between components, especially HTTP flows and Postgres persistence behavior.
 - Fixed-response test doubles should use the `Stub` suffix.
 - Architectural rules that must remain true across the repository belong in `tests/architecture/`.

@@ -4,6 +4,10 @@ from src.core.domain.user import NewUser, User, UserChanges
 from src.core.shared import ListQuery, Page
 
 
+class UserNotFoundOutputPortError(Exception):
+    pass
+
+
 class UserEmailConflictOutputPortError(Exception):
     pass
 

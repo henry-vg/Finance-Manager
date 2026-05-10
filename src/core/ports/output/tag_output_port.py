@@ -4,6 +4,10 @@ from src.core.domain.tag import NewTag, Tag, TagChanges
 from src.core.shared import ListQuery, Page
 
 
+class TagNotFoundOutputPortError(Exception):
+    pass
+
+
 class TagOutputPort(Protocol):
     async def list_tags(
         self,

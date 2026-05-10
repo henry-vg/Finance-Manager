@@ -7,6 +7,7 @@ from src.core.domain.tag import (
     UpdateTagData,
 )
 from src.core.ports.input.tag_input_port import TagInputPort
+from src.core.ports.output.tag_output_port import TagNotFoundOutputPortError
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
 from src.core.shared import ListQuery, Page
 
@@ -69,12 +70,15 @@ class TagUseCase(TagInputPort):
             if current_tag is None:
                 raise TagNotFoundError()
 
-            updated_tag = await unit_of_work.tags.update_tag(
-                tag_id=tag_id,
-                changes=TagChanges(
-                    title=data.title,
-                ),
-            )
+            try:
+                updated_tag = await unit_of_work.tags.update_tag(
+                    tag_id=tag_id,
+                    changes=TagChanges(
+                        title=data.title,
+                    ),
+                )
+            except TagNotFoundOutputPortError as exc:
+                raise TagNotFoundError() from exc
 
             await unit_of_work.commit()
 
@@ -99,12 +103,18 @@ class TagUseCase(TagInputPort):
                 raise TagNotFoundError()
 
             if hard_delete:
-                await unit_of_work.tags.hard_delete_tag(
-                    tag_id=tag_id,
-                )
+                try:
+                    await unit_of_work.tags.hard_delete_tag(
+                        tag_id=tag_id,
+                    )
+                except TagNotFoundOutputPortError as exc:
+                    raise TagNotFoundError() from exc
             else:
-                await unit_of_work.tags.soft_delete_tag(
-                    tag_id=tag_id,
-                )
+                try:
+                    await unit_of_work.tags.soft_delete_tag(
+                        tag_id=tag_id,
+                    )
+                except TagNotFoundOutputPortError as exc:
+                    raise TagNotFoundError() from exc
 
             await unit_of_work.commit()

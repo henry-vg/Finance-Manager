@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.core.domain.tag import NewTag, TagChanges, TagSortableField
+from src.core.ports.output.tag_output_port import TagNotFoundOutputPortError
 from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
     SQLAlchemyTagOutputAdapter,
@@ -217,3 +218,17 @@ async def test_hard_delete_tag_removes_record_permanently(
         tag_record = await session.get(TagRecord, created_tag.id)
 
     assert tag_record is None
+
+
+@pytest.mark.anyio
+async def test_update_tag_raises_output_port_not_found_when_record_is_missing(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTagOutputAdapter(session)
+
+        with pytest.raises(TagNotFoundOutputPortError):
+            await repository.update_tag(
+                tag_id=999,
+                changes=_build_tag_changes(),
+            )
