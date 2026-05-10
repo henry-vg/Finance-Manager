@@ -1,3 +1,4 @@
+from .aggregates.tag import SQLAlchemyTagOutputAdapter, TagRecord
 from .aggregates.user import SQLAlchemyUserOutputAdapter, UserRecord
 from .base import mapper_registry, postgres_metadata
 from .health import SQLAlchemyPostgresHealthAdapter
@@ -13,8 +14,10 @@ __all__ = [
     "mapper_registry",
     "postgres_metadata",
     "SQLAlchemyPostgresHealthAdapter",
+    "SQLAlchemyTagOutputAdapter",
     "SQLAlchemyPostgresUnitOfWorkFactory",
     "SQLAlchemyUserOutputAdapter",
+    "TagRecord",
     "UserRecord",
     "create_postgres_engine",
     "create_postgres_session_factory",

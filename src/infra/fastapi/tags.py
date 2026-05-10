@@ -9,6 +9,14 @@ openapi_tags = [
         ),
     },
     {
+        "name": "Tag",
+        "description": (
+            "Tag management endpoints for creating, retrieving, listing, "
+            "updating, and deleting tags persisted in Postgres. Responses "
+            "include normalized UTC audit timestamps."
+        ),
+    },
+    {
         "name": "User",
         "description": (
             "User management endpoints for creating, retrieving, updating, "

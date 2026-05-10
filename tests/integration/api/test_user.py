@@ -10,6 +10,7 @@ from src.core.domain.healthz import (
     HealthzReadinessDependencies,
     HealthzStatus,
 )
+from src.core.domain.tag import CreateTagData, Tag, UpdateTagData
 from src.core.domain.user import (
     CreateUserData,
     UpdateUserData,
@@ -18,6 +19,7 @@ from src.core.domain.user import (
     UserNotFoundError,
 )
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.tag_input_port import TagInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page, SortDirection, SortTerm
 from src.infra.fastapi.app import create_http_app
@@ -86,6 +88,62 @@ class _ReadyHealthzInputPortStub(HealthzInputPort):
                 database=HealthzStatus.OK,
             ),
         )
+
+
+class _TagInputPortStub(TagInputPort):
+    async def list_tags(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Tag]:
+        return Page[Tag](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
+    async def get_tag(
+        self,
+        tag_id: int,
+    ) -> Tag:
+        return Tag(
+            id=tag_id,
+            title="Food",
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=2),
+        )
+
+    async def create_tag(
+        self,
+        data: CreateTagData,
+    ) -> Tag:
+        return Tag(
+            id=1,
+            title=data.title,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=1),
+        )
+
+    async def update_tag(
+        self,
+        tag_id: int,
+        data: UpdateTagData,
+    ) -> Tag:
+        return Tag(
+            id=tag_id,
+            title=data.title,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=2),
+        )
+
+    async def delete_tag(
+        self,
+        tag_id: int,
+        hard_delete: bool = False,
+    ) -> None:
+        del tag_id
+        del hard_delete
+        return None
 
 
 class _UserInputPortStub(UserInputPort):
@@ -250,6 +308,7 @@ def _create_test_app(
     return create_http_app(
         settings=load_settings(),
         healthz_input_port=_ReadyHealthzInputPortStub(),
+        tag_input_port=_TagInputPortStub(),
         user_input_port=user_input_port,
     )
 

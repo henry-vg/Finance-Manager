@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.ports.output import UnitOfWorkOutputPort
+from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
 from src.core.ports.output.user_output_port import UserOutputPort
+from src.infra.postgres.aggregates.tag import SQLAlchemyTagOutputAdapter
 from src.infra.postgres.aggregates.user import SQLAlchemyUserOutputAdapter
 
 
@@ -13,8 +15,16 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
     ) -> None:
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
+        self._tags: TagOutputPort | None = None
         self._users: UserOutputPort | None = None
         self._is_closed = False
+
+    @property
+    def tags(self) -> TagOutputPort:
+        if self._tags is None:
+            raise RuntimeError("Unit of work has not been entered")
+
+        return self._tags
 
     @property
     def users(self) -> UserOutputPort:
@@ -31,6 +41,7 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
             raise RuntimeError("Unit of work cannot be reused after exit")
 
         self._session = self._session_factory()
+        self._tags = SQLAlchemyTagOutputAdapter(self._session)
         self._users = SQLAlchemyUserOutputAdapter(self._session)
         return self
 
@@ -56,6 +67,7 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
                 await session.close()
             finally:
                 self._session = None
+                self._tags = None
                 self._users = None
                 self._is_closed = True
 

@@ -8,6 +8,7 @@ from src.adapters.input.api.exception_handlers import add_exception_handlers
 from src.adapters.input.api.middlewares import add_middlewares
 from src.adapters.input.api.router import create_api_router
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.tag_input_port import TagInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.infra.fastapi.tags import openapi_tags
 from src.infra.logging import setup_logging
@@ -25,6 +26,7 @@ def create_http_app(
     *,
     settings: Settings,
     healthz_input_port: HealthzInputPort,
+    tag_input_port: TagInputPort,
     user_input_port: UserInputPort,
     lifespan=_default_lifespan,
 ) -> FastAPI:
@@ -60,6 +62,7 @@ def create_http_app(
         pagination_default_limit=settings.fastapi.pagination_default_limit,
         pagination_max_limit=settings.fastapi.pagination_max_limit,
         healthz_input_port=healthz_input_port,
+        tag_input_port=tag_input_port,
         user_input_port=user_input_port,
     )
 

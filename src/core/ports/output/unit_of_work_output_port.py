@@ -1,9 +1,13 @@
 from typing import Protocol, Self
 
+from .tag_output_port import TagOutputPort
 from .user_output_port import UserOutputPort
 
 
 class UnitOfWorkOutputPort(Protocol):
+    @property
+    def tags(self) -> TagOutputPort: ...
+
     @property
     def users(self) -> UserOutputPort: ...
 

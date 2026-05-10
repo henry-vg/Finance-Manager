@@ -12,6 +12,7 @@ from src.core.domain.user import (
     UserNotFoundError,
 )
 from src.core.ports.output.password_hasher_output_port import PasswordHasherOutputPort
+from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
     UnitOfWorkOutputPortFactory,
@@ -237,14 +238,50 @@ class _UserOutputPortStub(UserOutputPort):
         self.users_by_id.pop(user_id, None)
 
 
+class _UnusedTagOutputPortStub(TagOutputPort):
+    async def list_tags(self, list_query):
+        del list_query
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+    async def get_tag_by_id(self, tag_id):
+        del tag_id
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+    async def get_tag_by_id_including_deleted(self, tag_id):
+        del tag_id
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+    async def create_tag(self, new_tag):
+        del new_tag
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+    async def update_tag(self, tag_id, changes):
+        del tag_id
+        del changes
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+    async def soft_delete_tag(self, tag_id):
+        del tag_id
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+    async def hard_delete_tag(self, tag_id):
+        del tag_id
+        raise RuntimeError("tags output port is unused in user use case tests")
+
+
 class _UnitOfWorkOutputPortStub(UnitOfWorkOutputPort):
     def __init__(
         self,
         user_output_port: _UserOutputPortStub,
     ) -> None:
         self._user_output_port = user_output_port
+        self._tag_output_port = _UnusedTagOutputPortStub()
         self.commit_calls = 0
         self.rollback_calls = 0
+
+    @property
+    def tags(self) -> TagOutputPort:
+        return self._tag_output_port
 
     @property
     def users(self) -> UserOutputPort:

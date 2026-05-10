@@ -101,7 +101,7 @@ class SQLAlchemyUserOutputAdapter(UserOutputPort):
 
     async def get_user_by_email(
         self,
-        email,
+        email: str,
     ) -> User | None:
         user_record = await self._get_user_record_by_email(
             email=email,

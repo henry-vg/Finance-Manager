@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.tag_input_port import TagInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.ports.output.database_health_output_port import DatabaseHealthOutputPort
 from src.core.usecases.healthz_usecase import HealthzUseCase
+from src.core.usecases.tag_usecase import TagUseCase
 from src.core.usecases.user_usecase import UserUseCase
 from src.infra.postgres import (
     SQLAlchemyPostgresHealthAdapter,
@@ -27,6 +29,7 @@ class ApplicationContainer:
     postgres_session_factory: async_sessionmaker[AsyncSession]
     postgres_health_output_port: DatabaseHealthOutputPort
     healthz_input_port: HealthzInputPort
+    tag_input_port: TagInputPort
     user_input_port: UserInputPort
 
 
@@ -47,6 +50,9 @@ def build_application_container() -> ApplicationContainer:
         postgres_health_output_port=postgres_health_output_port,
         healthz_input_port=HealthzUseCase(
             database_health_output_port=postgres_health_output_port,
+        ),
+        tag_input_port=TagUseCase(
+            unit_of_work_output_port_factory=unit_of_work_output_port_factory,
         ),
         user_input_port=UserUseCase(
             unit_of_work_output_port_factory=unit_of_work_output_port_factory,
