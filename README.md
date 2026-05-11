@@ -47,6 +47,18 @@ When adding a new aggregate that must participate in the same transactional boun
 The architectural boundaries are enforced by `pytestarch` tests in `tests/architecture`.
 
 
+## Current V1 Financial Scope
+
+- The target persisted financial model for v1 is `LedgerAccount`, `Tag`, `Transaction`, `Entry` and `EntryTag`.
+- The target v1 model does not include `StatementCycle`, `StatementRule`, `Statement`, `Invoice` or `transaction.statement_cycle_id`.
+- Credit-card invoices are not persisted as their own aggregate in v1. An invoice is a projection over credit-card `Entry` records.
+- Invoice identity is factual on the `Entry`: `statement_closing_date` and `statement_due_date` belong to the entry when the entry represents credit-card liability.
+- `effective_at` remains the economic date of the transaction, but it does not define invoice membership by itself.
+- The current public simple-CRUD surface for the financial model is intentionally narrow: `LedgerAccount` and `Tag`.
+- `Entry` and `EntryTag` do not have independent CRUD in v1.
+- `Transaction` remains the aggregate root of the accounting event, but its public write flow must be introduced together with balanced subordinate `Entry` writes instead of as an isolated simple CRUD.
+
+
 ## Engineering Conventions
 
 The codebase prefers explicit, boring names over clever indirection. The main goal is that a reader can identify the architectural role of a type or module from its name alone.
@@ -122,6 +134,8 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - For `GET /user/list`, sortable public fields currently come from `UserResponse`, the default functional order is `created_at ASC`, and the implementation adds a technical `id DESC` tie-break to keep pages stable.
 - The user collection endpoint lists only active users; soft-deleted users remain invisible in paginated reads just as they do in normal `GET` flows.
 - Paginated HTTP responses should include `items`, `offset`, `limit` and `total`.
+- Error-status mapping must reflect the semantic cause, not just the layer where the error was raised. Use `404` for missing resources, `409` for resource-state conflicts such as uniqueness collisions, and `422` when the request is syntactically valid but violates a business rule on existing data.
+- The current reference distinction is `UserEmailConflictError -> 409` versus a semantic accounting-rule violation such as providing invoice fields on an entry that does not point to a `LIABILITY` + `CREDIT_CARD` ledger account. A duplicate email is a resource conflict; the latter is valid syntax with invalid business meaning for the requested workflow.
 
 ### Security and Hashing Rules
 
@@ -152,7 +166,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - New names should align with existing canonical vocabulary in the repository. When a concept already has an established prefix or suffix, reuse it instead of introducing a near-synonym.
 - Changes that affect public contracts, architectural conventions or cross-cutting rules should update the README in the same cycle.
 - Changes should leave behind focused tests for the touched behavior. Prefer the narrowest test that proves the decision, then rely on the broader suite as a safety net.
-- Cross-aggregate business invariants belong in the use case that owns the workflow, not in the HTTP route or repository. The current reference rule is `StatementCycle`: it may only reference a `LedgerAccount` with `type == LIABILITY` and `kind == CREDIT_CARD`, and that validation is enforced in `StatementCycleUseCase` inside the same unit-of-work boundary.
+- Cross-aggregate business invariants belong in the use case that owns the workflow, not in the HTTP route or repository. In the target financial model, the reference rule is the transaction write flow: invoice fields on an `Entry` only make sense when that entry points to a `LedgerAccount` with `type == LIABILITY` and `kind == CREDIT_CARD`, and that validation should live in the use case that owns the transactional write boundary.
 
 
 ## How To Run Locally

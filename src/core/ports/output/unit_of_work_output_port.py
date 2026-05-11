@@ -1,7 +1,6 @@
 from typing import Protocol, Self
 
 from .ledger_account_output_port import LedgerAccountOutputPort
-from .statement_cycle_output_port import StatementCycleOutputPort
 from .tag_output_port import TagOutputPort
 from .user_output_port import UserOutputPort
 
@@ -9,9 +8,6 @@ from .user_output_port import UserOutputPort
 class UnitOfWorkOutputPort(Protocol):
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort: ...
-
-    @property
-    def statement_cycles(self) -> StatementCycleOutputPort: ...
 
     @property
     def tags(self) -> TagOutputPort: ...

@@ -51,12 +51,12 @@ def _to_ledger_account_response(
 ) -> LedgerAccountResponse:
     return LedgerAccountResponse(
         id=ledger_account.id,
+        created_at=ledger_account.created_at,
+        updated_at=ledger_account.updated_at,
         title=ledger_account.title,
         type=LedgerAccountTypeSchema[ledger_account.type.name],
         kind=LedgerAccountKindSchema[ledger_account.kind.name],
         currency=CurrencySchema[ledger_account.currency.name],
-        created_at=ledger_account.created_at,
-        updated_at=ledger_account.updated_at,
     )
 
 

@@ -5,9 +5,9 @@ from enum import IntEnum
 
 class TagSortableField(IntEnum):
     ID = 1
-    TITLE = 2
-    CREATED_AT = 3
-    UPDATED_AT = 4
+    CREATED_AT = 2
+    UPDATED_AT = 3
+    TITLE = 4
 
 
 @dataclass(frozen=True)

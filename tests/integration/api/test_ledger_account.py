@@ -16,15 +16,9 @@ from src.core.domain.ledger_account import (
     LedgerAccountNotFoundError,
     UpdateLedgerAccountData,
 )
-from src.core.domain.statement_cycle import (
-    CreateStatementCycleData,
-    StatementCycle,
-    UpdateStatementCycleData,
-)
 from src.core.domain.tag import CreateTagData, Tag, UpdateTagData
 from src.core.domain.user import CreateUserData, UpdateUserData, User
 from src.core.ports.input.healthz_input_port import HealthzInputPort
-from src.core.ports.input.statement_cycle_input_port import StatementCycleInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page
@@ -138,71 +132,6 @@ class _LedgerAccountInputPortStub:
         self.soft_deleted_ledger_account_ids.add(ledger_account_id)
 
 
-class _StatementCycleInputPortStub(StatementCycleInputPort):
-    async def list_statement_cycles(
-        self,
-        list_query: ListQuery,
-    ) -> Page[StatementCycle]:
-        return Page[StatementCycle](
-            items=[],
-            offset=list_query.offset,
-            limit=list_query.limit,
-            total=0,
-        )
-
-    async def get_statement_cycle(self, statement_cycle_id: int) -> StatementCycle:
-        return StatementCycle(
-            id=statement_cycle_id,
-            ledger_account_id=1,
-            cycle_start=date(2026, 5, 1),
-            cycle_end=date(2026, 5, 31),
-            closing_date=date(2026, 5, 28),
-            due_date=date(2026, 6, 5),
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(2),
-        )
-
-    async def create_statement_cycle(
-        self,
-        data: CreateStatementCycleData,
-    ) -> StatementCycle:
-        return StatementCycle(
-            id=1,
-            ledger_account_id=data.ledger_account_id,
-            cycle_start=data.cycle_start,
-            cycle_end=data.cycle_end,
-            closing_date=data.closing_date,
-            due_date=data.due_date,
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(1),
-        )
-
-    async def update_statement_cycle(
-        self,
-        statement_cycle_id: int,
-        data: UpdateStatementCycleData,
-    ) -> StatementCycle:
-        return StatementCycle(
-            id=statement_cycle_id,
-            ledger_account_id=data.ledger_account_id,
-            cycle_start=data.cycle_start,
-            cycle_end=data.cycle_end,
-            closing_date=data.closing_date,
-            due_date=data.due_date,
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(2),
-        )
-
-    async def delete_statement_cycle(
-        self,
-        statement_cycle_id: int,
-        hard_delete: bool = False,
-    ) -> None:
-        del statement_cycle_id
-        del hard_delete
-        return None
-
-
 class _TagInputPortStub(TagInputPort):
     async def list_tags(self, list_query: ListQuery) -> Page[Tag]:
         return Page[Tag](
@@ -298,7 +227,6 @@ def _create_test_app(ledger_account_input_port: _LedgerAccountInputPortStub) -> 
         settings=load_settings(),
         healthz_input_port=_ReadyHealthzInputPortStub(),
         ledger_account_input_port=ledger_account_input_port,
-        statement_cycle_input_port=_StatementCycleInputPortStub(),
         tag_input_port=_TagInputPortStub(),
         user_input_port=_UserInputPortStub(),
     )
@@ -339,8 +267,26 @@ async def test_ledger_account_crud_flow_through_http_app() -> None:
         )
 
     assert create_response.status_code == 201
+    assert list(create_response.json().keys()) == [
+        "id",
+        "created_at",
+        "updated_at",
+        "title",
+        "type",
+        "kind",
+        "currency",
+    ]
     assert create_response.json()["title"] == "Main Account"
     assert get_response.status_code == 200
+    assert list(get_response.json().keys()) == [
+        "id",
+        "created_at",
+        "updated_at",
+        "title",
+        "type",
+        "kind",
+        "currency",
+    ]
     assert get_response.json()["id"] == created_id
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 1

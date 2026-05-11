@@ -148,14 +148,23 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         response = await client.get("/ledger-account", params={"id": 1})
 
     assert response.status_code == 200
+    assert list(response.json().keys()) == [
+        "id",
+        "created_at",
+        "updated_at",
+        "title",
+        "type",
+        "kind",
+        "currency",
+    ]
     assert response.json() == {
         "id": 1,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-01T00:00:00.000Z",
         "title": "Main Account",
         "type": "asset",
         "kind": "bank_account",
         "currency": "BRL",
-        "created_at": "2026-05-01T00:00:00.000Z",
-        "updated_at": "2026-05-01T00:00:00.000Z",
     }
 
 

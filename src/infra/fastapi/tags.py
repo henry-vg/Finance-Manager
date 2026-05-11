@@ -18,14 +18,6 @@ openapi_tags = [
         ),
     },
     {
-        "name": "StatementCycle",
-        "description": (
-            "Statement cycle management endpoints for organizing billing windows, "
-            "closing dates, and due dates for credit-card ledger accounts. "
-            "Responses include normalized UTC audit timestamps."
-        ),
-    },
-    {
         "name": "Tag",
         "description": (
             "Tag management endpoints for creating, retrieving, listing, "

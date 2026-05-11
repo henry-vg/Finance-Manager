@@ -11,7 +11,6 @@ from src.core.domain.tag import (
     UpdateTagData,
 )
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
-from src.core.ports.output.statement_cycle_output_port import StatementCycleOutputPort
 from src.core.ports.output.tag_output_port import (
     TagNotFoundOutputPortError,
     TagOutputPort,
@@ -110,10 +109,6 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort:
         raise RuntimeError("ledger_accounts output port is unused in tag tests")
-
-    @property
-    def statement_cycles(self) -> StatementCycleOutputPort:
-        raise RuntimeError("statement_cycles output port is unused in tag tests")
 
     @property
     def users(self) -> UserOutputPort:

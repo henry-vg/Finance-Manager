@@ -26,23 +26,23 @@ class LedgerAccountKind(IntEnum):
 
 class LedgerAccountSortableField(IntEnum):
     ID = 1
-    TITLE = 2
-    TYPE = 3
-    KIND = 4
-    CURRENCY = 5
-    CREATED_AT = 6
-    UPDATED_AT = 7
+    CREATED_AT = 2
+    UPDATED_AT = 3
+    TITLE = 4
+    TYPE = 5
+    KIND = 6
+    CURRENCY = 7
 
 
 @dataclass(frozen=True)
 class LedgerAccount:
     id: int
+    created_at: datetime
+    updated_at: datetime
     title: str
     type: LedgerAccountType
     kind: LedgerAccountKind
     currency: Currency
-    created_at: datetime
-    updated_at: datetime
 
 
 @dataclass(frozen=True)

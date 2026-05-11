@@ -5,12 +5,12 @@ from enum import IntEnum
 
 class UserSortableField(IntEnum):
     ID = 1
-    FIRST_NAME = 2
-    LAST_NAME = 3
-    EMAIL = 4
-    BIRTH_DATE = 5
-    CREATED_AT = 6
-    UPDATED_AT = 7
+    CREATED_AT = 2
+    UPDATED_AT = 3
+    FIRST_NAME = 4
+    LAST_NAME = 5
+    EMAIL = 6
+    BIRTH_DATE = 7
 
 
 @dataclass(frozen=True)

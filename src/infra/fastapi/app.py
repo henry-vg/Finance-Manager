@@ -9,7 +9,6 @@ from src.adapters.input.api.middlewares import add_middlewares
 from src.adapters.input.api.router import create_api_router
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
-from src.core.ports.input.statement_cycle_input_port import StatementCycleInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.infra.fastapi.tags import openapi_tags
@@ -29,7 +28,6 @@ def create_http_app(
     settings: Settings,
     healthz_input_port: HealthzInputPort,
     ledger_account_input_port: LedgerAccountInputPort,
-    statement_cycle_input_port: StatementCycleInputPort,
     tag_input_port: TagInputPort,
     user_input_port: UserInputPort,
     lifespan=_default_lifespan,
@@ -67,7 +65,6 @@ def create_http_app(
         pagination_max_limit=settings.fastapi.pagination_max_limit,
         healthz_input_port=healthz_input_port,
         ledger_account_input_port=ledger_account_input_port,
-        statement_cycle_input_port=statement_cycle_input_port,
         tag_input_port=tag_input_port,
         user_input_port=user_input_port,
     )

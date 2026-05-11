@@ -17,7 +17,6 @@ from src.core.ports.output.ledger_account_output_port import (
     LedgerAccountNotFoundOutputPortError,
     LedgerAccountOutputPort,
 )
-from src.core.ports.output.statement_cycle_output_port import StatementCycleOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
@@ -169,12 +168,6 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort:
         return self._ledger_accounts
-
-    @property
-    def statement_cycles(self) -> StatementCycleOutputPort:
-        raise RuntimeError(
-            "statement_cycles output port is unused in ledger account tests",
-        )
 
     @property
     def tags(self) -> TagOutputPort:
