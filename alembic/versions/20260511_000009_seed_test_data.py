@@ -42,14 +42,6 @@ ledger_account_kind_enum = postgresql.ENUM(
     create_type=False,
 )
 
-currency_enum = postgresql.ENUM(
-    "BRL",
-    "USD",
-    "EUR",
-    name="currency_enum",
-    create_type=False,
-)
-
 transaction_status_enum = postgresql.ENUM(
     "PENDING",
     "EFFECTIVE",
@@ -80,7 +72,7 @@ ledger_accounts_table = sa.table(
     sa.column("title", sa.String(length=255)),
     sa.column("type", ledger_account_type_enum),
     sa.column("kind", ledger_account_kind_enum),
-    sa.column("currency", currency_enum),
+    sa.column("currency_iso_code", sa.String(length=3)),
 )
 
 transactions_table = sa.table(
@@ -90,7 +82,7 @@ transactions_table = sa.table(
     sa.column("title", sa.String(length=255)),
     sa.column("description", sa.Text()),
     sa.column("status", transaction_status_enum),
-    sa.column("currency", currency_enum),
+    sa.column("currency", sa.String(length=3)),
 )
 
 entries_table = sa.table(
@@ -187,7 +179,7 @@ def _build_ledger_accounts() -> list[dict[str, object]]:
             "title": title,
             "type": account_type,
             "kind": kind,
-            "currency": currency,
+            "currency_iso_code": currency,
         }
         for offset, (title, account_type, kind, currency) in enumerate(account_specs)
     ]

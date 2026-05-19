@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from src.core.domain.ledger_account import (
-    Currency,
     LedgerAccount,
     LedgerAccountKind,
     LedgerAccountType,
@@ -188,7 +187,7 @@ class TransactionUseCase(TransactionInputPort):
         self,
         *,
         unit_of_work: UnitOfWorkOutputPort,
-        currency: Currency,
+        currency: str,
         entries: tuple[NewEntry, ...],
     ) -> None:
         if len(entries) < 2:
@@ -214,7 +213,7 @@ class TransactionUseCase(TransactionInputPort):
 
             ledger_account = ledger_accounts[entry.ledger_account_id]
 
-            if ledger_account.currency != currency:
+            if ledger_account.currency_iso_code != currency:
                 raise TransactionLedgerAccountCurrencyMismatchError()
 
             has_closing_date = entry.statement_closing_date is not None

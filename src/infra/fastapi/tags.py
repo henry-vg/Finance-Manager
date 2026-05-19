@@ -9,6 +9,14 @@ openapi_tags = [
         ),
     },
     {
+        "name": "Currency",
+        "description": (
+            "Currency catalog endpoints for configuring supported currencies "
+            "and their stable metadata such as code, symbol, and decimal "
+            "precision."
+        ),
+    },
+    {
         "name": "LedgerAccount",
         "description": (
             "Ledger account management endpoints for creating, retrieving, "

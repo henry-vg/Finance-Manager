@@ -23,14 +23,6 @@ transaction_status_enum = postgresql.ENUM(
     create_type=False,
 )
 
-currency_enum = postgresql.ENUM(
-    "BRL",
-    "USD",
-    "EUR",
-    name="currency_enum",
-    create_type=False,
-)
-
 
 def upgrade() -> None:
     bind = op.get_bind()
@@ -44,7 +36,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("status", transaction_status_enum, nullable=False),
-        sa.Column("currency", currency_enum, nullable=False),
+        sa.Column("currency", sa.String(length=3), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

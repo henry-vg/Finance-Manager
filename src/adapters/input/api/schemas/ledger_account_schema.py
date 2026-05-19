@@ -1,13 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
 
+from pydantic import Field
+
 from .base import ApiSchemaBase
-
-
-class CurrencySchema(StrEnum):
-    BRL = "BRL"
-    USD = "USD"
-    EUR = "EUR"
 
 
 class LedgerAccountTypeSchema(StrEnum):
@@ -29,14 +25,14 @@ class CreateLedgerAccountRequest(ApiSchemaBase):
     title: str
     type: LedgerAccountTypeSchema
     kind: LedgerAccountKindSchema
-    currency: CurrencySchema
+    currency_iso_code: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
 
 
 class UpdateLedgerAccountRequest(ApiSchemaBase):
     title: str
     type: LedgerAccountTypeSchema
     kind: LedgerAccountKindSchema
-    currency: CurrencySchema
+    currency_iso_code: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
 
 
 class LedgerAccountResponse(ApiSchemaBase):
@@ -46,4 +42,4 @@ class LedgerAccountResponse(ApiSchemaBase):
     title: str
     type: LedgerAccountTypeSchema
     kind: LedgerAccountKindSchema
-    currency: CurrencySchema
+    currency_iso_code: str

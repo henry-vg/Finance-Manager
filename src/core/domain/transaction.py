@@ -3,8 +3,6 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import IntEnum
 
-from src.core.domain.ledger_account import Currency
-
 
 class TransactionStatus(IntEnum):
     PENDING = 1
@@ -41,7 +39,7 @@ class Transaction:
     title: str
     description: str | None
     status: TransactionStatus
-    currency: Currency
+    currency: str
 
 
 @dataclass(frozen=True)
@@ -64,7 +62,7 @@ class NewTransaction:
     title: str
     description: str | None
     status: TransactionStatus
-    currency: Currency
+    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -73,7 +71,7 @@ class TransactionChanges:
     effective_at: datetime
     title: str
     description: str | None
-    currency: Currency
+    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -83,7 +81,7 @@ class CreateTransactionData:
     title: str
     description: str | None
     status: TransactionStatus
-    currency: Currency
+    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -92,7 +90,7 @@ class UpdateTransactionData:
     effective_at: datetime
     title: str
     description: str | None
-    currency: Currency
+    currency: str
     entries: tuple[NewEntry, ...]
 
 

@@ -34,21 +34,12 @@ ledger_account_kind_enum = postgresql.ENUM(
     create_type=False,
 )
 
-currency_enum = postgresql.ENUM(
-    "BRL",
-    "USD",
-    "EUR",
-    name="currency_enum",
-    create_type=False,
-)
-
 
 def upgrade() -> None:
     bind = op.get_bind()
 
     ledger_account_type_enum.create(bind, checkfirst=True)
     ledger_account_kind_enum.create(bind, checkfirst=True)
-    currency_enum.create(bind, checkfirst=True)
 
     op.create_table(
         "ledger_accounts",
@@ -56,7 +47,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("type", ledger_account_type_enum, nullable=False),
         sa.Column("kind", ledger_account_kind_enum, nullable=False),
-        sa.Column("currency", currency_enum, nullable=False),
+        sa.Column("currency_iso_code", sa.String(length=3), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -96,6 +87,5 @@ def downgrade() -> None:
     )
     op.drop_table("ledger_accounts")
 
-    currency_enum.drop(bind, checkfirst=True)
     ledger_account_kind_enum.drop(bind, checkfirst=True)
     ledger_account_type_enum.drop(bind, checkfirst=True)

@@ -7,8 +7,8 @@ from fastapi import FastAPI
 from src.adapters.input.api.routes.ledger_account_route import create_router
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
-    Currency,
     LedgerAccount,
+    LedgerAccountCurrencyISOCodeNotSupportedError,
     LedgerAccountKind,
     LedgerAccountNotFoundError,
     LedgerAccountType,
@@ -27,6 +27,8 @@ class _LedgerAccountInputPortStub:
         self.soft_deleted_ledger_account_ids: set[int] = set()
         self.delete_calls: list[tuple[int, bool]] = []
         self.list_ledger_account_queries: list[ListQuery] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
         self._next_ledger_account_id = 1
 
     async def list_ledger_accounts(
@@ -64,12 +66,15 @@ class _LedgerAccountInputPortStub:
         self,
         data: CreateLedgerAccountData,
     ) -> LedgerAccount:
+        if self.create_error is not None:
+            raise self.create_error
+
         ledger_account = LedgerAccount(
             id=self._next_ledger_account_id,
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=_build_timestamp(1),
             updated_at=_build_timestamp(1),
         )
@@ -82,13 +87,16 @@ class _LedgerAccountInputPortStub:
         ledger_account_id: int,
         data: UpdateLedgerAccountData,
     ) -> LedgerAccount:
+        if self.update_error is not None:
+            raise self.update_error
+
         current = await self.get_ledger_account(ledger_account_id)
         updated = LedgerAccount(
             id=current.id,
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=current.created_at,
             updated_at=_build_timestamp(2),
         )
@@ -137,7 +145,7 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         title="Main Account",
         type=LedgerAccountType.ASSET,
         kind=LedgerAccountKind.BANK_ACCOUNT,
-        currency=Currency.BRL,
+        currency_iso_code="BRL",
         created_at=_build_timestamp(1),
         updated_at=_build_timestamp(1),
     )
@@ -155,7 +163,7 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         "title",
         "type",
         "kind",
-        "currency",
+        "currency_iso_code",
     ]
     assert response.json() == {
         "id": 1,
@@ -164,7 +172,7 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         "title": "Main Account",
         "type": "asset",
         "kind": "bank_account",
-        "currency": "BRL",
+        "currency_iso_code": "BRL",
     }
 
 
@@ -176,7 +184,7 @@ async def test_list_ledger_accounts_returns_paginated_response() -> None:
         title="Credit Card",
         type=LedgerAccountType.LIABILITY,
         kind=LedgerAccountKind.CREDIT_CARD,
-        currency=Currency.USD,
+        currency_iso_code="USD",
         created_at=_build_timestamp(2),
         updated_at=_build_timestamp(2),
     )
@@ -185,7 +193,7 @@ async def test_list_ledger_accounts_returns_paginated_response() -> None:
         title="Main Account",
         type=LedgerAccountType.ASSET,
         kind=LedgerAccountKind.BANK_ACCOUNT,
-        currency=Currency.BRL,
+        currency_iso_code="BRL",
         created_at=_build_timestamp(1),
         updated_at=_build_timestamp(1),
     )
@@ -222,13 +230,40 @@ async def test_create_ledger_account_returns_created_response() -> None:
                 "title": "Main Account",
                 "type": "asset",
                 "kind": "bank_account",
-                "currency": "BRL",
+                "currency_iso_code": "BRL",
             },
         )
 
     assert response.status_code == 201
     assert response.json()["title"] == "Main Account"
     assert response.json()["type"] == "asset"
+
+
+@pytest.mark.anyio
+async def test_create_ledger_account_returns_422_for_unsupported_currency() -> None:
+    ledger_account_input_port_stub = _LedgerAccountInputPortStub()
+    ledger_account_input_port_stub.create_error = (
+        LedgerAccountCurrencyISOCodeNotSupportedError()
+    )
+    app = _create_test_app(ledger_account_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/ledger-account",
+            json={
+                "title": "Main Account",
+                "type": "asset",
+                "kind": "bank_account",
+                "currency_iso_code": "JPY",
+            },
+        )
+
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"]
+        == "Ledger account currency ISO code is not supported."
+    )
 
 
 @pytest.mark.anyio
@@ -244,12 +279,49 @@ async def test_update_ledger_account_returns_404_for_missing_ledger_account() ->
                 "title": "Credit Card",
                 "type": "liability",
                 "kind": "credit_card",
-                "currency": "USD",
+                "currency_iso_code": "USD",
             },
         )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Ledger account not found."
+
+
+@pytest.mark.anyio
+async def test_update_ledger_account_returns_422_for_unsupported_currency() -> None:
+    ledger_account_input_port_stub = _LedgerAccountInputPortStub()
+    ledger_account_input_port_stub.ledger_accounts_by_id[1] = LedgerAccount(
+        id=1,
+        title="Main Account",
+        type=LedgerAccountType.ASSET,
+        kind=LedgerAccountKind.BANK_ACCOUNT,
+        currency_iso_code="BRL",
+        created_at=_build_timestamp(1),
+        updated_at=_build_timestamp(1),
+    )
+    ledger_account_input_port_stub.update_error = (
+        LedgerAccountCurrencyISOCodeNotSupportedError()
+    )
+    app = _create_test_app(ledger_account_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.put(
+            "/ledger-account",
+            params={"id": 1},
+            json={
+                "title": "Main Account",
+                "type": "asset",
+                "kind": "bank_account",
+                "currency_iso_code": "JPY",
+            },
+        )
+
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"]
+        == "Ledger account currency ISO code is not supported."
+    )
 
 
 @pytest.mark.anyio
@@ -260,7 +332,7 @@ async def test_delete_ledger_account_soft_deletes_by_default() -> None:
         title="Main Account",
         type=LedgerAccountType.ASSET,
         kind=LedgerAccountKind.BANK_ACCOUNT,
-        currency=Currency.BRL,
+        currency_iso_code="BRL",
         created_at=_build_timestamp(1),
         updated_at=_build_timestamp(1),
     )

@@ -24,6 +24,7 @@ from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
+from tests.integration.currency_input_port_stub import CurrencyInputPortStub
 
 
 def _build_timestamp(day: int) -> datetime:
@@ -86,7 +87,7 @@ class _LedgerAccountInputPortStub:
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=_build_timestamp(1),
             updated_at=_build_timestamp(1),
         )
@@ -105,7 +106,7 @@ class _LedgerAccountInputPortStub:
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=current.created_at,
             updated_at=_build_timestamp(2),
         )
@@ -226,6 +227,7 @@ def _create_test_app(ledger_account_input_port: _LedgerAccountInputPortStub) -> 
     return create_http_app(
         settings=load_settings(),
         healthz_input_port=_ReadyHealthzInputPortStub(),
+        currency_input_port=CurrencyInputPortStub(),
         ledger_account_input_port=ledger_account_input_port,
         tag_input_port=_TagInputPortStub(),
         user_input_port=_UserInputPortStub(),
@@ -245,7 +247,7 @@ async def test_ledger_account_crud_flow_through_http_app() -> None:
                 "title": "Main Account",
                 "type": "asset",
                 "kind": "bank_account",
-                "currency": "BRL",
+                "currency_iso_code": "BRL",
             },
         )
         created_id = create_response.json()["id"]
@@ -258,7 +260,7 @@ async def test_ledger_account_crud_flow_through_http_app() -> None:
                 "title": "Credit Card",
                 "type": "liability",
                 "kind": "credit_card",
-                "currency": "USD",
+                "currency_iso_code": "USD",
             },
         )
         delete_response = await client.delete(
@@ -274,7 +276,7 @@ async def test_ledger_account_crud_flow_through_http_app() -> None:
         "title",
         "type",
         "kind",
-        "currency",
+        "currency_iso_code",
     ]
     assert create_response.json()["title"] == "Main Account"
     assert get_response.status_code == 200
@@ -285,7 +287,7 @@ async def test_ledger_account_crud_flow_through_http_app() -> None:
         "title",
         "type",
         "kind",
-        "currency",
+        "currency_iso_code",
     ]
     assert get_response.json()["id"] == created_id
     assert list_response.status_code == 200

@@ -9,7 +9,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.core.domain.ledger_account import (
-    Currency,
     LedgerAccountKind,
     LedgerAccountType,
     NewLedgerAccount,
@@ -96,7 +95,7 @@ async def _create_ledger_account(
             title=title,
             type=type,
             kind=kind,
-            currency=Currency.BRL,
+            currency_iso_code="BRL",
         ),
     )
     return ledger_account.id
@@ -125,7 +124,7 @@ def _build_new_transaction(
         title="Airline tickets",
         description="Family vacation purchase",
         status=status,
-        currency=Currency.BRL,
+        currency="BRL",
         entries=(
             NewEntry(
                 ledger_account_id=expense_ledger_account_id,
@@ -426,7 +425,7 @@ async def test_update_transaction_replaces_entries_and_entry_tags(
                 effective_at=datetime(2026, 5, 12, 9, 0, tzinfo=UTC),
                 title="Hotel reservation",
                 description="Updated pending purchase",
-                currency=Currency.BRL,
+                currency="BRL",
                 entries=(
                     NewEntry(
                         ledger_account_id=expense_ledger_account_id,
@@ -535,7 +534,7 @@ async def test_update_transaction_rejects_non_pending_transaction(
                     effective_at=datetime(2026, 5, 12, 9, 0, tzinfo=UTC),
                     title="Hotel reservation",
                     description="Updated pending purchase",
-                    currency=Currency.BRL,
+                    currency="BRL",
                     entries=(
                         NewEntry(
                             ledger_account_id=expense_ledger_account_id,

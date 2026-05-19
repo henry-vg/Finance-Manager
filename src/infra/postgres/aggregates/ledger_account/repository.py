@@ -23,7 +23,7 @@ _LEDGER_ACCOUNT_LIST_SORT_COLUMNS: dict[LedgerAccountSortableField, Any] = {
     LedgerAccountSortableField.TITLE: LedgerAccountRecord.title,
     LedgerAccountSortableField.TYPE: LedgerAccountRecord.type,
     LedgerAccountSortableField.KIND: LedgerAccountRecord.kind,
-    LedgerAccountSortableField.CURRENCY: LedgerAccountRecord.currency,
+    LedgerAccountSortableField.CURRENCY_ISO_CODE: LedgerAccountRecord.currency_iso_code,
     LedgerAccountSortableField.CREATED_AT: LedgerAccountRecord.created_at,
     LedgerAccountSortableField.UPDATED_AT: LedgerAccountRecord.updated_at,
 }
@@ -37,7 +37,7 @@ def _to_domain_ledger_account(
         title=ledger_account_record.title,
         type=ledger_account_record.type,
         kind=ledger_account_record.kind,
-        currency=ledger_account_record.currency,
+        currency_iso_code=ledger_account_record.currency_iso_code,
         created_at=ledger_account_record.created_at,
         updated_at=ledger_account_record.updated_at,
     )
@@ -132,7 +132,7 @@ class SQLAlchemyLedgerAccountOutputAdapter(LedgerAccountOutputPort):
         ledger_account_record.title = new_ledger_account.title
         ledger_account_record.type = new_ledger_account.type
         ledger_account_record.kind = new_ledger_account.kind
-        ledger_account_record.currency = new_ledger_account.currency
+        ledger_account_record.currency_iso_code = new_ledger_account.currency_iso_code
 
         self._session.add(ledger_account_record)
         await self._session.flush()
@@ -157,7 +157,7 @@ class SQLAlchemyLedgerAccountOutputAdapter(LedgerAccountOutputPort):
         ledger_account_record.title = changes.title
         ledger_account_record.type = changes.type
         ledger_account_record.kind = changes.kind
-        ledger_account_record.currency = changes.currency
+        ledger_account_record.currency_iso_code = changes.currency_iso_code
 
         await self._session.flush()
         await self._session.refresh(ledger_account_record)

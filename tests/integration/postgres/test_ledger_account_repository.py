@@ -7,7 +7,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.core.domain.ledger_account import (
-    Currency,
     LedgerAccountChanges,
     LedgerAccountKind,
     LedgerAccountSortableField,
@@ -47,13 +46,13 @@ def _build_new_ledger_account(
     title: str = "Main Account",
     type: LedgerAccountType = LedgerAccountType.ASSET,
     kind: LedgerAccountKind = LedgerAccountKind.BANK_ACCOUNT,
-    currency: Currency = Currency.BRL,
+    currency_iso_code: str = "BRL",
 ) -> NewLedgerAccount:
     return NewLedgerAccount(
         title=title,
         type=type,
         kind=kind,
-        currency=currency,
+        currency_iso_code=currency_iso_code,
     )
 
 
@@ -62,13 +61,13 @@ def _build_ledger_account_changes(
     title: str = "Credit Card",
     type: LedgerAccountType = LedgerAccountType.LIABILITY,
     kind: LedgerAccountKind = LedgerAccountKind.CREDIT_CARD,
-    currency: Currency = Currency.USD,
+    currency_iso_code: str = "USD",
 ) -> LedgerAccountChanges:
     return LedgerAccountChanges(
         title=title,
         type=type,
         kind=kind,
-        currency=currency,
+        currency_iso_code=currency_iso_code,
     )
 
 
@@ -162,7 +161,7 @@ async def test_create_ledger_account_generates_id_and_timestamps_with_active_def
     assert ledger_account_record is not None
     assert ledger_account_record.type == LedgerAccountType.ASSET
     assert ledger_account_record.kind == LedgerAccountKind.BANK_ACCOUNT
-    assert ledger_account_record.currency == Currency.BRL
+    assert ledger_account_record.currency_iso_code == "BRL"
     assert ledger_account_record.is_deleted is False
     assert ledger_account_record.deleted_at is None
 
@@ -215,7 +214,7 @@ async def test_list_ledger_accounts_returns_paginated_active_ledger_accounts_wit
                 title="Credit Card",
                 type=LedgerAccountType.LIABILITY,
                 kind=LedgerAccountKind.CREDIT_CARD,
-                currency=Currency.USD,
+                currency_iso_code="USD",
             ),
         )
         await repository.soft_delete_ledger_account(

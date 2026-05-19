@@ -1,4 +1,4 @@
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, String
 
 from src.infra.postgres import postgres_metadata
 
@@ -26,7 +26,7 @@ def test_transactions_table_matches_v1_base_shape() -> None:
     }
     assert list(transactions_table.primary_key.columns.keys()) == ["id"]
     assert transactions_table.c.status.type.name == "transaction_status_enum"
-    assert transactions_table.c.currency.type.name == "currency_enum"
+    assert isinstance(transactions_table.c.currency.type, String)
 
 
 def test_entries_table_matches_v1_base_shape() -> None:

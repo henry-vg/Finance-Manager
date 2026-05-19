@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 
 from src.adapters.input.api.routes import (
+    currency_route,
     docs_route,
     healthz_route,
     ledger_account_route,
     tag_route,
     user_route,
 )
+from src.core.ports.input.currency_input_port import CurrencyInputPort
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
@@ -21,6 +23,7 @@ def create_api_router(
     pagination_default_limit: int,
     pagination_max_limit: int,
     healthz_input_port: HealthzInputPort,
+    currency_input_port: CurrencyInputPort,
     ledger_account_input_port: LedgerAccountInputPort,
     tag_input_port: TagInputPort,
     user_input_port: UserInputPort,
@@ -40,6 +43,14 @@ def create_api_router(
     api_router.include_router(
         router=healthz_route.create_router(
             healthz_input_port=healthz_input_port,
+        ),
+    )
+
+    api_router.include_router(
+        router=currency_route.create_router(
+            currency_input_port=currency_input_port,
+            pagination_default_limit=pagination_default_limit,
+            pagination_max_limit=pagination_max_limit,
         ),
     )
 

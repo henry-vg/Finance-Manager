@@ -1,4 +1,10 @@
+from .currency_output_port import (
+    CurrencyISOCodeConflictOutputPortError,
+    CurrencyNotFoundOutputPortError,
+    CurrencyOutputPort,
+)
 from .database_health_output_port import DatabaseHealthOutputPort
+from .exchange_rate_output_port import ExchangeRateOutputPort
 from .ledger_account_output_port import (
     LedgerAccountNotFoundOutputPortError,
     LedgerAccountOutputPort,
@@ -20,7 +26,11 @@ from .user_output_port import (
 )
 
 __all__ = [
+    "CurrencyISOCodeConflictOutputPortError",
+    "CurrencyNotFoundOutputPortError",
+    "CurrencyOutputPort",
     "DatabaseHealthOutputPort",
+    "ExchangeRateOutputPort",
     "LedgerAccountNotFoundOutputPortError",
     "LedgerAccountOutputPort",
     "PasswordHasherOutputPort",

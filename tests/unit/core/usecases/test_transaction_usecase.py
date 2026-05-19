@@ -4,7 +4,6 @@ from decimal import Decimal
 import pytest
 
 from src.core.domain.ledger_account import (
-    Currency,
     LedgerAccount,
     LedgerAccountKind,
     LedgerAccountType,
@@ -67,7 +66,7 @@ def _build_transaction_data(
         title="Airline tickets",
         description="Family vacation purchase",
         status=status,
-        currency=Currency.BRL,
+        currency="BRL",
         entries=(
             NewEntry(
                 ledger_account_id=expense_ledger_account_id,
@@ -116,7 +115,7 @@ def _build_ledger_account(
     ledger_account_id: int,
     type: LedgerAccountType,
     kind: LedgerAccountKind,
-    currency: Currency = Currency.BRL,
+    currency: str = "BRL",
 ) -> LedgerAccount:
     return LedgerAccount(
         id=ledger_account_id,
@@ -125,7 +124,7 @@ def _build_ledger_account(
         title=f"Ledger Account {ledger_account_id}",
         type=type,
         kind=kind,
-        currency=currency,
+        currency_iso_code=currency,
     )
 
 
@@ -143,7 +142,7 @@ def _build_transaction_with_entries(
             title="Airline tickets",
             description="Family vacation purchase",
             status=status,
-            currency=Currency.BRL,
+            currency="BRL",
         ),
         entries=(
             EntryWithTags(
@@ -519,7 +518,7 @@ async def test_create_transaction_requires_matching_ledger_account_currency() ->
         ledger_account_id=2,
         type=LedgerAccountType.LIABILITY,
         kind=LedgerAccountKind.CREDIT_CARD,
-        currency=Currency.USD,
+        currency="USD",
     )
 
     with pytest.raises(TransactionLedgerAccountCurrencyMismatchError):

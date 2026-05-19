@@ -3,6 +3,11 @@ from datetime import UTC, date, datetime
 from fastapi.routing import APIRoute
 
 from src.adapters.input.api.router import create_api_router
+from src.core.domain.currency import (
+    CreateCurrencyData,
+    Currency,
+    UpdateCurrencyData,
+)
 from src.core.domain.healthz import (
     HealthzLiveness,
     HealthzReadiness,
@@ -11,7 +16,6 @@ from src.core.domain.healthz import (
 )
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
-    Currency,
     LedgerAccount,
     LedgerAccountKind,
     LedgerAccountType,
@@ -23,6 +27,7 @@ from src.core.domain.user import (
     UpdateUserData,
     User,
 )
+from src.core.ports.input.currency_input_port import CurrencyInputPort
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
@@ -64,6 +69,74 @@ class _HealthyHealthzInputPortStub(HealthzInputPort):
                 database=HealthzStatus.OK,
             ),
         )
+
+
+class _CurrencyInputPortStub(CurrencyInputPort):
+    async def list_currencies(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Currency]:
+        return Page[Currency](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
+    async def get_currency(
+        self,
+        currency_id: int,
+    ) -> Currency:
+        return Currency(
+            id=currency_id,
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=2),
+        )
+
+    async def create_currency(
+        self,
+        data: CreateCurrencyData,
+    ) -> Currency:
+        return Currency(
+            id=1,
+            iso_code=data.iso_code,
+            iso_numeric=data.iso_numeric,
+            name=data.name,
+            symbol=data.symbol,
+            decimal_places=data.decimal_places,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=1),
+        )
+
+    async def update_currency(
+        self,
+        currency_id: int,
+        data: UpdateCurrencyData,
+    ) -> Currency:
+        return Currency(
+            id=currency_id,
+            iso_code=data.iso_code,
+            iso_numeric=data.iso_numeric,
+            name=data.name,
+            symbol=data.symbol,
+            decimal_places=data.decimal_places,
+            created_at=_build_timestamp(year=2026, month=5, day=1),
+            updated_at=_build_timestamp(year=2026, month=5, day=2),
+        )
+
+    async def delete_currency(
+        self,
+        currency_id: int,
+        hard_delete: bool = False,
+    ) -> None:
+        del currency_id
+        del hard_delete
+        return None
 
 
 class _TagInputPortStub(TagInputPort):
@@ -143,7 +216,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             title="Main Account",
             type=LedgerAccountType.ASSET,
             kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency=Currency.BRL,
+            currency_iso_code="BRL",
             created_at=_build_timestamp(year=2026, month=5, day=1),
             updated_at=_build_timestamp(year=2026, month=5, day=2),
         )
@@ -157,7 +230,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=_build_timestamp(year=2026, month=5, day=1),
             updated_at=_build_timestamp(year=2026, month=5, day=1),
         )
@@ -172,7 +245,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=_build_timestamp(year=2026, month=5, day=1),
             updated_at=_build_timestamp(year=2026, month=5, day=2),
         )
@@ -264,6 +337,7 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
         pagination_default_limit=50,
         pagination_max_limit=500,
         healthz_input_port=_HealthyHealthzInputPortStub(),
+        currency_input_port=_CurrencyInputPortStub(),
         ledger_account_input_port=_LedgerAccountInputPortStub(),
         tag_input_port=_TagInputPortStub(),
         user_input_port=_UserInputPortStub(),
@@ -274,6 +348,8 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
     assert "/docs" in route_paths
     assert "/healthz/liveness" in route_paths
     assert "/healthz/readiness" in route_paths
+    assert "/currency" in route_paths
+    assert "/currency/list" in route_paths
     assert "/ledger-account" in route_paths
     assert "/ledger-account/list" in route_paths
     assert "/tag" in route_paths

@@ -3,12 +3,6 @@ from datetime import datetime
 from enum import IntEnum
 
 
-class Currency(IntEnum):
-    BRL = 1
-    USD = 2
-    EUR = 3
-
-
 class LedgerAccountType(IntEnum):
     ASSET = 1
     LIABILITY = 2
@@ -31,7 +25,7 @@ class LedgerAccountSortableField(IntEnum):
     TITLE = 4
     TYPE = 5
     KIND = 6
-    CURRENCY = 7
+    CURRENCY_ISO_CODE = 7
 
 
 @dataclass(frozen=True)
@@ -42,7 +36,7 @@ class LedgerAccount:
     title: str
     type: LedgerAccountType
     kind: LedgerAccountKind
-    currency: Currency
+    currency_iso_code: str
 
 
 @dataclass(frozen=True)
@@ -50,7 +44,7 @@ class NewLedgerAccount:
     title: str
     type: LedgerAccountType
     kind: LedgerAccountKind
-    currency: Currency
+    currency_iso_code: str
 
 
 @dataclass(frozen=True)
@@ -58,7 +52,7 @@ class LedgerAccountChanges:
     title: str
     type: LedgerAccountType
     kind: LedgerAccountKind
-    currency: Currency
+    currency_iso_code: str
 
 
 @dataclass(frozen=True)
@@ -66,7 +60,7 @@ class CreateLedgerAccountData:
     title: str
     type: LedgerAccountType
     kind: LedgerAccountKind
-    currency: Currency
+    currency_iso_code: str
 
 
 @dataclass(frozen=True)
@@ -74,8 +68,12 @@ class UpdateLedgerAccountData:
     title: str
     type: LedgerAccountType
     kind: LedgerAccountKind
-    currency: Currency
+    currency_iso_code: str
 
 
 class LedgerAccountNotFoundError(Exception):
+    pass
+
+
+class LedgerAccountCurrencyISOCodeNotSupportedError(Exception):
     pass

@@ -12,7 +12,6 @@ from src.core.domain.healthz import (
 )
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
-    Currency,
     LedgerAccount,
     LedgerAccountKind,
     LedgerAccountType,
@@ -26,6 +25,7 @@ from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page
 from src.infra.fastapi.app import create_http_app
 from src.infra.settings import load_settings
+from tests.integration.currency_input_port_stub import CurrencyInputPortStub
 
 
 def _build_timestamp(day: int) -> datetime:
@@ -133,7 +133,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             title="Main Account",
             type=LedgerAccountType.ASSET,
             kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency=Currency.BRL,
+            currency_iso_code="BRL",
             created_at=_build_timestamp(1),
             updated_at=_build_timestamp(2),
         )
@@ -147,7 +147,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=_build_timestamp(1),
             updated_at=_build_timestamp(1),
         )
@@ -162,7 +162,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             title=data.title,
             type=data.type,
             kind=data.kind,
-            currency=data.currency,
+            currency_iso_code=data.currency_iso_code,
             created_at=_build_timestamp(1),
             updated_at=_build_timestamp(2),
         )
@@ -232,6 +232,7 @@ def _create_test_app(tag_input_port: _TagInputPortStub) -> FastAPI:
     return create_http_app(
         settings=load_settings(),
         healthz_input_port=_ReadyHealthzInputPortStub(),
+        currency_input_port=CurrencyInputPortStub(),
         ledger_account_input_port=_LedgerAccountInputPortStub(),
         tag_input_port=tag_input_port,
         user_input_port=_UserInputPortStub(),

@@ -1,3 +1,4 @@
+from .aggregates.currency import CurrencyRecord, SQLAlchemyCurrencyOutputAdapter
 from .aggregates.ledger_account import (
     LedgerAccountRecord,
     SQLAlchemyLedgerAccountOutputAdapter,
@@ -18,10 +19,12 @@ from .unit_of_work import SQLAlchemyPostgresUnitOfWorkFactory
 __all__ = [
     "mapper_registry",
     "postgres_metadata",
+    "CurrencyRecord",
     "EntryRecord",
     "EntryTagRecord",
     "LedgerAccountRecord",
     "SQLAlchemyPostgresHealthAdapter",
+    "SQLAlchemyCurrencyOutputAdapter",
     "SQLAlchemyLedgerAccountOutputAdapter",
     "SQLAlchemyTagOutputAdapter",
     "SQLAlchemyPostgresUnitOfWorkFactory",

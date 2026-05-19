@@ -1,5 +1,6 @@
 from typing import Protocol, Self
 
+from .currency_output_port import CurrencyOutputPort
 from .ledger_account_output_port import LedgerAccountOutputPort
 from .tag_output_port import TagOutputPort
 from .transaction_output_port import TransactionOutputPort
@@ -7,6 +8,9 @@ from .user_output_port import UserOutputPort
 
 
 class UnitOfWorkOutputPort(Protocol):
+    @property
+    def currencies(self) -> CurrencyOutputPort: ...
+
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort: ...
 

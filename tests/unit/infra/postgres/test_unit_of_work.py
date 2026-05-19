@@ -41,6 +41,9 @@ def test_unit_of_work_raises_when_repository_is_accessed_before_enter() -> None:
     unit_of_work = _build_unit_of_work()
 
     with pytest.raises(UnitOfWorkHasNotBeenEnteredError):
+        _ = unit_of_work.currencies
+
+    with pytest.raises(UnitOfWorkHasNotBeenEnteredError):
         _ = unit_of_work.users
 
     with pytest.raises(UnitOfWorkHasNotBeenEnteredError):

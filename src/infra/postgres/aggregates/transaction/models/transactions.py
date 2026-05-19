@@ -3,11 +3,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.core.domain.ledger_account import Currency
 from src.core.domain.transaction import TransactionStatus
-from src.infra.postgres.aggregates.ledger_account.models.ledger_accounts import (
-    currency_enum,
-)
 
 from ....base import PostgresPersistedRecordMixin, mapper_registry
 
@@ -43,7 +39,7 @@ class TransactionRecord(PostgresPersistedRecordMixin):
         transaction_status_enum,
         nullable=False,
     )
-    currency: Mapped[Currency] = mapped_column(
-        currency_enum,
+    currency: Mapped[str] = mapped_column(
+        String(length=3),
         nullable=False,
     )

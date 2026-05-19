@@ -14,8 +14,8 @@ from src.adapters.input.api.pagination import (
 )
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
-    Currency,
     LedgerAccount,
+    LedgerAccountCurrencyISOCodeNotSupportedError,
     LedgerAccountKind,
     LedgerAccountNotFoundError,
     LedgerAccountSortableField,
@@ -28,7 +28,6 @@ from src.core.shared import ListQuery, Page
 from ..schemas import PageResponse
 from ..schemas.ledger_account_schema import (
     CreateLedgerAccountRequest,
-    CurrencySchema,
     LedgerAccountKindSchema,
     LedgerAccountResponse,
     LedgerAccountTypeSchema,
@@ -43,7 +42,7 @@ class LedgerAccountListSortField(StrEnum):
     TITLE = "title"
     TYPE = "type"
     KIND = "kind"
-    CURRENCY = "currency"
+    CURRENCY_ISO_CODE = "currency_iso_code"
 
 
 def _to_ledger_account_response(
@@ -56,7 +55,7 @@ def _to_ledger_account_response(
         title=ledger_account.title,
         type=LedgerAccountTypeSchema[ledger_account.type.name],
         kind=LedgerAccountKindSchema[ledger_account.kind.name],
-        currency=CurrencySchema[ledger_account.currency.name],
+        currency_iso_code=ledger_account.currency_iso_code,
     )
 
 
@@ -85,6 +84,13 @@ def create_router(
         exception_type=LedgerAccountNotFoundError,
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Ledger account not found.",
+    )
+    ledger_account_currency_iso_code_not_supported_translation = (
+        HTTPExceptionTranslation(
+            exception_type=LedgerAccountCurrencyISOCodeNotSupportedError,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Ledger account currency ISO code is not supported.",
+        )
     )
     list_sort_config = ListQuerySortConfig(
         fields=tuple(
@@ -186,7 +192,10 @@ def create_router(
                 "description": "The ledger account was created successfully.",
             },
             422: {
-                "description": "The request body failed validation.",
+                "description": (
+                    "The request body failed validation or the provided currency ISO "
+                    "code is not supported."
+                ),
             },
         },
         summary="Create Ledger Account",
@@ -194,14 +203,17 @@ def create_router(
     async def create_ledger_account(
         payload: CreateLedgerAccountRequest,
     ) -> LedgerAccountResponse:
-        ledger_account = await ledger_account_input_port.create_ledger_account(
-            data=CreateLedgerAccountData(
-                title=payload.title,
-                type=LedgerAccountType[payload.type.name],
-                kind=LedgerAccountKind[payload.kind.name],
-                currency=Currency[payload.currency.name],
-            ),
-        )
+        with translate_exceptions_to_http(
+            ledger_account_currency_iso_code_not_supported_translation,
+        ):
+            ledger_account = await ledger_account_input_port.create_ledger_account(
+                data=CreateLedgerAccountData(
+                    title=payload.title,
+                    type=LedgerAccountType[payload.type.name],
+                    kind=LedgerAccountKind[payload.kind.name],
+                    currency_iso_code=payload.currency_iso_code,
+                ),
+            )
 
         return _to_ledger_account_response(ledger_account=ledger_account)
 
@@ -221,7 +233,8 @@ def create_router(
             },
             422: {
                 "description": (
-                    "The request payload or query parameters failed validation."
+                    "The request payload or query parameters failed validation, or "
+                    "the provided currency ISO code is not supported."
                 ),
             },
         },
@@ -235,14 +248,17 @@ def create_router(
             description="Identifier of the ledger account to update.",
         ),
     ) -> LedgerAccountResponse:
-        with translate_exceptions_to_http(ledger_account_not_found_translation):
+        with translate_exceptions_to_http(
+            ledger_account_not_found_translation,
+            ledger_account_currency_iso_code_not_supported_translation,
+        ):
             ledger_account = await ledger_account_input_port.update_ledger_account(
                 ledger_account_id=id,
                 data=UpdateLedgerAccountData(
                     title=payload.title,
                     type=LedgerAccountType[payload.type.name],
                     kind=LedgerAccountKind[payload.kind.name],
-                    currency=Currency[payload.currency.name],
+                    currency_iso_code=payload.currency_iso_code,
                 ),
             )
 

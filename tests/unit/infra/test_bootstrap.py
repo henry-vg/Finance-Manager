@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from src.core.usecases.currency_usecase import CurrencyUseCase
 from src.core.usecases.healthz_usecase import HealthzUseCase
 from src.core.usecases.ledger_account_usecase import LedgerAccountUseCase
 from src.core.usecases.tag_usecase import TagUseCase
@@ -9,6 +10,7 @@ from src.infra.bootstrap import (
     ApplicationContainer,
     build_application_container,
 )
+from src.infra.exchange_rate import MockExchangeRateOutputAdapter
 from src.infra.postgres.health import SQLAlchemyPostgresHealthAdapter
 from src.infra.settings.models import Settings
 
@@ -25,7 +27,12 @@ def test_build_application_container_returns_loaded_dependencies():
         container.postgres_health_output_port,
         SQLAlchemyPostgresHealthAdapter,
     )
+    assert isinstance(
+        container.exchange_rate_output_port,
+        MockExchangeRateOutputAdapter,
+    )
     assert isinstance(container.healthz_input_port, HealthzUseCase)
+    assert isinstance(container.currency_input_port, CurrencyUseCase)
     assert isinstance(container.ledger_account_input_port, LedgerAccountUseCase)
     assert isinstance(container.tag_input_port, TagUseCase)
     assert isinstance(container.transaction_input_port, TransactionUseCase)
