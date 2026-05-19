@@ -88,7 +88,7 @@ def create_router(
     ledger_account_currency_iso_code_not_supported_translation = (
         HTTPExceptionTranslation(
             exception_type=LedgerAccountCurrencyISOCodeNotSupportedError,
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Ledger account currency ISO code is not supported.",
         )
     )

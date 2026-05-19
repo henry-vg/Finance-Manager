@@ -87,7 +87,7 @@ def create_router(
     )
     currency_data_validation_translation = HTTPExceptionTranslation(
         exception_type=CurrencyDataValidationError,
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail="Currency data is invalid.",
     )
     list_sort_config = ListQuerySortConfig(
