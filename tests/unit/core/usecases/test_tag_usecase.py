@@ -15,6 +15,7 @@ from src.core.ports.output.tag_output_port import (
     TagNotFoundOutputPortError,
     TagOutputPort,
 )
+from src.core.ports.output.transaction_output_port import TransactionOutputPort
 from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
     UnitOfWorkOutputPortFactory,
@@ -109,6 +110,10 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort:
         raise RuntimeError("ledger_accounts output port is unused in tag tests")
+
+    @property
+    def transactions(self) -> TransactionOutputPort:
+        raise RuntimeError("transactions output port is unused in tag tests")
 
     @property
     def users(self) -> UserOutputPort:

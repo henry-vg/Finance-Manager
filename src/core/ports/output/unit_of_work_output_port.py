@@ -2,6 +2,7 @@ from typing import Protocol, Self
 
 from .ledger_account_output_port import LedgerAccountOutputPort
 from .tag_output_port import TagOutputPort
+from .transaction_output_port import TransactionOutputPort
 from .user_output_port import UserOutputPort
 
 
@@ -11,6 +12,9 @@ class UnitOfWorkOutputPort(Protocol):
 
     @property
     def tags(self) -> TagOutputPort: ...
+
+    @property
+    def transactions(self) -> TransactionOutputPort: ...
 
     @property
     def users(self) -> UserOutputPort: ...

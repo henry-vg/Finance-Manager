@@ -3,12 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.core.ports.output import UnitOfWorkOutputPort
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
+from src.core.ports.output.transaction_output_port import TransactionOutputPort
 from src.core.ports.output.unit_of_work_output_port import UnitOfWorkOutputPortFactory
 from src.core.ports.output.user_output_port import UserOutputPort
 from src.infra.postgres.aggregates.ledger_account import (
     SQLAlchemyLedgerAccountOutputAdapter,
 )
 from src.infra.postgres.aggregates.tag import SQLAlchemyTagOutputAdapter
+from src.infra.postgres.aggregates.transaction import SQLAlchemyTransactionRepository
 from src.infra.postgres.aggregates.user import SQLAlchemyUserOutputAdapter
 
 
@@ -36,6 +38,7 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
         self._session: AsyncSession | None = None
         self._ledger_accounts: LedgerAccountOutputPort | None = None
         self._tags: TagOutputPort | None = None
+        self._transactions: TransactionOutputPort | None = None
         self._users: UserOutputPort | None = None
         self._is_closed = False
 
@@ -54,6 +57,13 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
         return self._tags
 
     @property
+    def transactions(self) -> TransactionOutputPort:
+        if self._transactions is None:
+            raise UnitOfWorkHasNotBeenEnteredError()
+
+        return self._transactions
+
+    @property
     def users(self) -> UserOutputPort:
         if self._users is None:
             raise UnitOfWorkHasNotBeenEnteredError()
@@ -70,6 +80,7 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
         self._session = self._session_factory()
         self._ledger_accounts = SQLAlchemyLedgerAccountOutputAdapter(self._session)
         self._tags = SQLAlchemyTagOutputAdapter(self._session)
+        self._transactions = SQLAlchemyTransactionRepository(self._session)
         self._users = SQLAlchemyUserOutputAdapter(self._session)
         return self
 
@@ -97,6 +108,7 @@ class SQLAlchemyPostgresUnitOfWork(UnitOfWorkOutputPort):
                 self._session = None
                 self._ledger_accounts = None
                 self._tags = None
+                self._transactions = None
                 self._users = None
                 self._is_closed = True
 

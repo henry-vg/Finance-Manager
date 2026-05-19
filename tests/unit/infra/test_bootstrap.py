@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from src.core.usecases.healthz_usecase import HealthzUseCase
 from src.core.usecases.ledger_account_usecase import LedgerAccountUseCase
 from src.core.usecases.tag_usecase import TagUseCase
+from src.core.usecases.transaction_usecase import TransactionUseCase
 from src.core.usecases.user_usecase import UserUseCase
 from src.infra.bootstrap import (
     ApplicationContainer,
@@ -27,4 +28,5 @@ def test_build_application_container_returns_loaded_dependencies():
     assert isinstance(container.healthz_input_port, HealthzUseCase)
     assert isinstance(container.ledger_account_input_port, LedgerAccountUseCase)
     assert isinstance(container.tag_input_port, TagUseCase)
+    assert isinstance(container.transaction_input_port, TransactionUseCase)
     assert isinstance(container.user_input_port, UserUseCase)

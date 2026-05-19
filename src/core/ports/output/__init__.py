@@ -5,6 +5,10 @@ from .ledger_account_output_port import (
 )
 from .password_hasher_output_port import PasswordHasherOutputPort
 from .tag_output_port import TagNotFoundOutputPortError, TagOutputPort
+from .transaction_output_port import (
+    TransactionNotFoundOutputPortError,
+    TransactionOutputPort,
+)
 from .unit_of_work_output_port import (
     UnitOfWorkOutputPort,
     UnitOfWorkOutputPortFactory,
@@ -22,6 +26,8 @@ __all__ = [
     "PasswordHasherOutputPort",
     "TagNotFoundOutputPortError",
     "TagOutputPort",
+    "TransactionNotFoundOutputPortError",
+    "TransactionOutputPort",
     "UnitOfWorkOutputPort",
     "UnitOfWorkOutputPortFactory",
     "UserEmailConflictOutputPortError",

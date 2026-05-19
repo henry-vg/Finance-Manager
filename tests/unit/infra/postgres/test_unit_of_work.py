@@ -43,6 +43,9 @@ def test_unit_of_work_raises_when_repository_is_accessed_before_enter() -> None:
     with pytest.raises(UnitOfWorkHasNotBeenEnteredError):
         _ = unit_of_work.users
 
+    with pytest.raises(UnitOfWorkHasNotBeenEnteredError):
+        _ = unit_of_work.transactions
+
 
 @pytest.mark.anyio
 async def test_unit_of_work_raises_when_enter_is_called_twice_while_active() -> None:
