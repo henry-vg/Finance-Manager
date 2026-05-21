@@ -1,12 +1,9 @@
-import os
-from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select, text
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.domain.ledger_account import (
     LedgerAccountKind,
@@ -29,57 +26,8 @@ from src.infra.postgres import (
     SQLAlchemyLedgerAccountOutputAdapter,
     SQLAlchemyTagOutputAdapter,
     TransactionRecord,
-    create_postgres_engine,
-    create_postgres_session_factory,
-    dispose_postgres_engine,
-    postgres_metadata,
 )
 from src.infra.postgres.aggregates.transaction import SQLAlchemyTransactionRepository
-from src.infra.settings.models import PostgresSettings
-
-
-def _build_postgres_settings() -> PostgresSettings:
-    return PostgresSettings(
-        host=os.getenv("CFG_POSTGRES_HOST", "localhost"),
-        port=int(os.getenv("CFG_POSTGRES_PORT", "5432")),
-        user=os.getenv("CFG_POSTGRES_USER", "finance_manager"),
-        password=os.getenv("CFG_POSTGRES_PASSWORD", "finance_manager"),
-        database=os.getenv("CFG_POSTGRES_DATABASE", "finance_manager"),
-        echo=False,
-        pool_size=10,
-        max_overflow=20,
-    )
-
-
-async def _prepare_database(engine: AsyncEngine) -> None:
-    async with engine.begin() as connection:
-        await connection.run_sync(postgres_metadata.drop_all)
-        await connection.run_sync(postgres_metadata.create_all)
-
-
-async def _cleanup_database(engine: AsyncEngine) -> None:
-    async with engine.begin() as connection:
-        await connection.run_sync(postgres_metadata.drop_all)
-
-
-@pytest.fixture
-async def postgres_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    engine = create_postgres_engine(_build_postgres_settings())
-
-    try:
-        async with engine.connect() as connection:
-            await connection.execute(text("SELECT 1"))
-    except SQLAlchemyError as exc:
-        await dispose_postgres_engine(engine)
-        pytest.skip(f"Postgres integration database is not available: {exc}")
-
-    await _prepare_database(engine)
-
-    try:
-        yield create_postgres_session_factory(engine)
-    finally:
-        await _cleanup_database(engine)
-        await dispose_postgres_engine(engine)
 
 
 async def _create_ledger_account(

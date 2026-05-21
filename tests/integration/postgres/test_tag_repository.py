@@ -1,10 +1,6 @@
-import os
-from collections.abc import AsyncIterator
-
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.domain.tag import NewTag, TagChanges, TagSortableField
 from src.core.ports.output.tag_output_port import TagNotFoundOutputPortError
@@ -12,25 +8,7 @@ from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
     SQLAlchemyTagOutputAdapter,
     TagRecord,
-    create_postgres_engine,
-    create_postgres_session_factory,
-    dispose_postgres_engine,
-    postgres_metadata,
 )
-from src.infra.settings.models import PostgresSettings
-
-
-def _build_postgres_settings() -> PostgresSettings:
-    return PostgresSettings(
-        host=os.getenv("CFG_POSTGRES_HOST", "localhost"),
-        port=int(os.getenv("CFG_POSTGRES_PORT", "5432")),
-        user=os.getenv("CFG_POSTGRES_USER", "finance_manager"),
-        password=os.getenv("CFG_POSTGRES_PASSWORD", "finance_manager"),
-        database=os.getenv("CFG_POSTGRES_DATABASE", "finance_manager"),
-        echo=False,
-        pool_size=10,
-        max_overflow=20,
-    )
 
 
 def _build_new_tag(*, title: str = "Food") -> NewTag:
@@ -41,67 +19,9 @@ def _build_tag_changes(*, title: str = "Utilities") -> TagChanges:
     return TagChanges(title=title)
 
 
-async def _prepare_database(engine: AsyncEngine) -> None:
-    async with engine.begin() as connection:
-        await connection.execute(
-            text(
-                """
-                CREATE OR REPLACE FUNCTION set_updated_at()
-                RETURNS TRIGGER AS $$
-                BEGIN
-                    NEW.updated_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
-
-                    IF NEW.is_deleted IS TRUE AND OLD.is_deleted IS FALSE THEN
-                        NEW.deleted_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
-                    END IF;
-
-                    RETURN NEW;
-                END;
-                $$ LANGUAGE plpgsql;
-                """,
-            ),
-        )
-        await connection.run_sync(postgres_metadata.drop_all)
-        await connection.run_sync(postgres_metadata.create_all)
-        await connection.execute(
-            text("DROP TRIGGER IF EXISTS set_tags_updated_at ON tags"),
-        )
-        await connection.execute(
-            text(
-                """
-                CREATE TRIGGER set_tags_updated_at
-                BEFORE UPDATE ON tags
-                FOR EACH ROW
-                EXECUTE FUNCTION set_updated_at()
-                """,
-            ),
-        )
-
-
-async def _cleanup_database(engine: AsyncEngine) -> None:
-    async with engine.begin() as connection:
-        await connection.run_sync(postgres_metadata.drop_all)
-        await connection.execute(text("DROP FUNCTION IF EXISTS set_updated_at()"))
-
-
 @pytest.fixture
-async def postgres_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    engine = create_postgres_engine(_build_postgres_settings())
-
-    try:
-        async with engine.connect() as connection:
-            await connection.execute(text("SELECT 1"))
-    except SQLAlchemyError as exc:
-        await dispose_postgres_engine(engine)
-        pytest.skip(f"Postgres integration database is not available: {exc}")
-
-    await _prepare_database(engine)
-
-    try:
-        yield create_postgres_session_factory(engine)
-    finally:
-        await _cleanup_database(engine)
-        await dispose_postgres_engine(engine)
+def postgres_trigger_specs() -> tuple[tuple[str, str], ...]:
+    return (("set_tags_updated_at", "tags"),)
 
 
 @pytest.mark.anyio
@@ -204,6 +124,23 @@ async def test_soft_delete_tag_hides_tag_from_active_reads(
 
 
 @pytest.mark.anyio
+async def test_soft_delete_tag_raises_not_found_when_record_was_already_deleted(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTagOutputAdapter(session)
+        created_tag = await repository.create_tag(new_tag=_build_new_tag())
+        await repository.soft_delete_tag(tag_id=created_tag.id)
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTagOutputAdapter(session)
+
+        with pytest.raises(TagNotFoundOutputPortError):
+            await repository.soft_delete_tag(tag_id=created_tag.id)
+
+
+@pytest.mark.anyio
 async def test_hard_delete_tag_removes_record_permanently(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -218,6 +155,27 @@ async def test_hard_delete_tag_removes_record_permanently(
         tag_record = await session.get(TagRecord, created_tag.id)
 
     assert tag_record is None
+
+
+@pytest.mark.anyio
+async def test_hard_delete_tag_removes_active_row_without_prior_soft_delete(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTagOutputAdapter(session)
+        created_tag = await repository.create_tag(new_tag=_build_new_tag())
+        await repository.hard_delete_tag(tag_id=created_tag.id)
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTagOutputAdapter(session)
+        tag_record = await session.get(TagRecord, created_tag.id)
+        deleted_tag = await repository.get_tag_by_id_including_deleted(
+            tag_id=created_tag.id,
+        )
+
+    assert tag_record is None
+    assert deleted_tag is None
 
 
 @pytest.mark.anyio

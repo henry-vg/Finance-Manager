@@ -69,6 +69,15 @@ def test_input_adapters_do_not_import_usecases():
     ).assert_applies(evaluable())
 
 
+def test_output_adapters_do_not_import_usecases_or_input_adapters():
+    prefix = module_prefix()
+    Rule().modules_that().are_sub_modules_of(
+        f"{prefix}.adapters.output",
+    ).should_not().import_modules_that().are_sub_modules_of(
+        [f"{prefix}.core.usecases", f"{prefix}.adapters.input"],
+    ).assert_applies(evaluable())
+
+
 def test_supporting_infra_does_not_import_adapters():
     prefix = module_prefix()
     Rule().modules_that().are_sub_modules_of(
@@ -88,4 +97,22 @@ def test_non_http_infra_does_not_import_adapters():
         ],
     ).should_not().import_modules_that().are_sub_modules_of(
         f"{prefix}.adapters",
+    ).assert_applies(evaluable())
+
+
+def test_fastapi_infra_does_not_import_output_adapters():
+    prefix = module_prefix()
+    Rule().modules_that().are_sub_modules_of(
+        f"{prefix}.infra.fastapi",
+    ).should_not().import_modules_that().are_sub_modules_of(
+        f"{prefix}.adapters.output",
+    ).assert_applies(evaluable())
+
+
+def test_core_shared_does_not_import_adapters_or_infra():
+    prefix = module_prefix()
+    Rule().modules_that().are_sub_modules_of(
+        f"{prefix}.core.shared",
+    ).should_not().import_modules_that().are_sub_modules_of(
+        [f"{prefix}.adapters", f"{prefix}.infra"],
     ).assert_applies(evaluable())
