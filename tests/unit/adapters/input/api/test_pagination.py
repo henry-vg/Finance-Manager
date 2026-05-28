@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from src.adapters.input.api.pagination import (
     EndpointSortField,
     ListQuerySortConfig,
+    _build_sort_description,
     create_list_query_dependency,
 )
 from src.core.shared import SortDirection, SortTerm
@@ -123,3 +124,56 @@ def test_get_list_query_maps_public_sort_alias_to_internal_field() -> None:
             direction=SortDirection.DESC,
         ),
     )
+
+
+def test_build_sort_description_includes_allowed_fields_and_default_sort() -> None:
+    description = _build_sort_description(
+        ListQuerySortConfig(
+            fields=(
+                EndpointSortField(
+                    query_name="first_name",
+                    item_field_name="first_name",
+                ),
+                EndpointSortField(
+                    query_name="created_at",
+                    item_field_name="created_at",
+                ),
+            ),
+            default_sort=("-created_at",),
+        ),
+    )
+
+    assert "Allowed fields: first_name, created_at." in description
+    assert "Default sort: -created_at." in description
+
+
+def test_get_list_query_rejects_sorting_when_endpoint_has_no_sort_config() -> None:
+    dependency = create_list_query_dependency(
+        default_limit=DEFAULT_PAGE_LIMIT,
+        max_limit=MAX_PAGE_LIMIT,
+        sort_config=None,
+    )
+
+    with pytest.raises(RequestValidationError, match="Sorting is not enabled"):
+        dependency(sort="first_name")
+
+
+def test_get_list_query_rejects_sort_token_without_field_name() -> None:
+    with pytest.raises(RequestValidationError, match="Sort fields cannot be empty"):
+        _build_list_query_dependency()(sort="-")
+
+
+def test_get_list_query_returns_empty_sort_when_sorting_is_disabled_and_omitted() -> (
+    None
+):
+    dependency = create_list_query_dependency(
+        default_limit=DEFAULT_PAGE_LIMIT,
+        max_limit=MAX_PAGE_LIMIT,
+        sort_config=None,
+    )
+
+    query = dependency(offset=3, limit=7)
+
+    assert query.offset == 3
+    assert query.limit == 7
+    assert query.sort == ()

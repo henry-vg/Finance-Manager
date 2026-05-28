@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from src.core.domain.currency import (
     CreateCurrencyData,
@@ -15,9 +15,7 @@ from src.core.domain.healthz import (
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
     LedgerAccount,
-    LedgerAccountKind,
     LedgerAccountNotFoundError,
-    LedgerAccountType,
     UpdateLedgerAccountData,
 )
 from src.core.domain.tag import CreateTagData, Tag, TagNotFoundError, UpdateTagData
@@ -182,196 +180,6 @@ class UnhealthyDatabaseHealthOutputPortStub(DatabaseHealthOutputPort):
 
 
 class LedgerAccountInputPortStub(LedgerAccountInputPort):
-    async def list_ledger_accounts(
-        self,
-        list_query: ListQuery,
-    ) -> Page[LedgerAccount]:
-        return Page[LedgerAccount](
-            items=[],
-            offset=list_query.offset,
-            limit=list_query.limit,
-            total=0,
-        )
-
-    async def get_ledger_account(
-        self,
-        ledger_account_id: int,
-    ) -> LedgerAccount:
-        return LedgerAccount(
-            id=ledger_account_id,
-            title="Main Account",
-            type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(2),
-        )
-
-    async def create_ledger_account(
-        self,
-        data: CreateLedgerAccountData,
-    ) -> LedgerAccount:
-        return LedgerAccount(
-            id=1,
-            title=data.title,
-            type=data.type,
-            kind=data.kind,
-            currency_iso_code=data.currency_iso_code,
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(1),
-        )
-
-    async def update_ledger_account(
-        self,
-        ledger_account_id: int,
-        data: UpdateLedgerAccountData,
-    ) -> LedgerAccount:
-        return LedgerAccount(
-            id=ledger_account_id,
-            title=data.title,
-            type=data.type,
-            kind=data.kind,
-            currency_iso_code=data.currency_iso_code,
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(2),
-        )
-
-    async def delete_ledger_account(
-        self,
-        ledger_account_id: int,
-        hard_delete: bool = False,
-    ) -> None:
-        del ledger_account_id
-        del hard_delete
-        return None
-
-
-class TagInputPortStub(TagInputPort):
-    async def list_tags(
-        self,
-        list_query: ListQuery,
-    ) -> Page[Tag]:
-        return Page[Tag](
-            items=[],
-            offset=list_query.offset,
-            limit=list_query.limit,
-            total=0,
-        )
-
-    async def get_tag(
-        self,
-        tag_id: int,
-    ) -> Tag:
-        return Tag(
-            id=tag_id,
-            title="Food",
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(2),
-        )
-
-    async def create_tag(
-        self,
-        data: CreateTagData,
-    ) -> Tag:
-        return Tag(
-            id=1,
-            title=data.title,
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(1),
-        )
-
-    async def update_tag(
-        self,
-        tag_id: int,
-        data: UpdateTagData,
-    ) -> Tag:
-        return Tag(
-            id=tag_id,
-            title=data.title,
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(2),
-        )
-
-    async def delete_tag(
-        self,
-        tag_id: int,
-        hard_delete: bool = False,
-    ) -> None:
-        del tag_id
-        del hard_delete
-        return None
-
-
-class UserInputPortStub(UserInputPort):
-    async def list_users(
-        self,
-        list_query: ListQuery,
-    ) -> Page[User]:
-        return Page[User](
-            items=[],
-            offset=list_query.offset,
-            limit=list_query.limit,
-            total=0,
-        )
-
-    async def get_user(
-        self,
-        email: str,
-    ) -> User:
-        return User(
-            id=1,
-            first_name="Ada",
-            last_name="Lovelace",
-            email=email,
-            password_hash="hashed::plain-password",
-            birth_date=date(1815, 12, 10),
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(2),
-        )
-
-    async def create_user(
-        self,
-        data: CreateUserData,
-    ) -> User:
-        return User(
-            id=1,
-            first_name=data.first_name,
-            last_name=data.last_name,
-            email=data.email,
-            password_hash="hashed::plain-password",
-            birth_date=data.birth_date,
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(1),
-        )
-
-    async def update_user(
-        self,
-        current_email: str,
-        data: UpdateUserData,
-    ) -> User:
-        del current_email
-        return User(
-            id=1,
-            first_name=data.first_name,
-            last_name=data.last_name,
-            email=data.email,
-            password_hash="hashed::plain-password",
-            birth_date=data.birth_date,
-            created_at=build_timestamp(1),
-            updated_at=build_timestamp(2),
-        )
-
-    async def delete_user(
-        self,
-        email: str,
-        hard_delete: bool = False,
-    ) -> None:
-        del email
-        del hard_delete
-        return None
-
-
-class InMemoryLedgerAccountInputPortStub(LedgerAccountInputPort):
     def __init__(self) -> None:
         self.ledger_accounts_by_id: dict[int, LedgerAccount] = {}
         self.soft_deleted_ledger_account_ids: set[int] = set()
@@ -465,7 +273,7 @@ class InMemoryLedgerAccountInputPortStub(LedgerAccountInputPort):
         self.soft_deleted_ledger_account_ids.add(ledger_account_id)
 
 
-class InMemoryTagInputPortStub(TagInputPort):
+class TagInputPortStub(TagInputPort):
     def __init__(self) -> None:
         self.tags_by_id: dict[int, Tag] = {}
         self.soft_deleted_tag_ids: set[int] = set()
@@ -559,7 +367,7 @@ def _sort_users(
     return sorted_users
 
 
-class InMemoryUserInputPortStub(UserInputPort):
+class UserInputPortStub(UserInputPort):
     def __init__(self) -> None:
         self.users_by_email: dict[str, User] = {}
         self.soft_deleted_emails: set[str] = set()

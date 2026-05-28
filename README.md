@@ -151,7 +151,12 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Unit tests should mirror the source boundary they protect.
 - Unit-test folders should follow the same structure as the application folders they cover. For example, tests for `src/core/shared/` should live under `tests/unit/core/shared/`, not directly under `tests/unit/core/`.
 - Integration tests should validate real collaboration between components, especially HTTP flows and Postgres persistence behavior.
+- Test names should follow the same behavior-oriented pattern across the suite: `test_<action>_<result>_<condition>`. Prefer stable vocabulary such as `returns`, `raises`, `soft_deletes`, `hard_deletes`, `rejects` and `persists` instead of mixing near-synonyms across analogous suites.
+- Suites that cover analogous behavior should assert at the same depth. CRUD HTTP tests should validate the relevant response body instead of only status codes, and repository integration tests should validate both the returned result and persisted side effects when persistence is part of the contract being exercised.
 - Fixed-response test doubles should use the `Stub` suffix.
+- `conftest.py` should own fixture lifecycle and composition only. Shared builders, reusable stateful doubles and focused support helpers belong in a surface-local helper module when they have clear payoff, such as `tests/integration/fastapi/helpers/builders.py`, `tests/integration/fastapi/helpers/stubs.py`, `tests/integration/postgres/helpers/builders.py` and `tests/integration/postgres/helpers/clock.py`.
+- Trivial one-line wrappers should stay inline in the suite that uses them. Do not extract helpers that hide less than they remove.
+- Redundant tests may be removed only when a remaining test still covers the same real behavior and the coverage run over `src/` stays at `100%`.
 - Architectural rules that must remain true across the repository belong in `tests/architecture/`.
 
 ### Implementation Guidance
@@ -194,8 +199,18 @@ docker compose -f docker/dev/docker-compose.yml up --build
 
 ## How To Test
 
+Running tests is a standing development premise for this project. Every change must be validated with `make run-tests` to guarantee nothing broke, and with `make run-tests-with-coverage` to guarantee `src/` remains at `100%` coverage.
+
 ```bash
-pytest -q
+make run-tests
+```
+
+This runs the suite without coverage for a faster feedback loop and should be the default command during development.
+
+To run coverage over `src/` and fail below `100%`:
+
+```bash
+make run-tests-with-coverage
 ```
 
 
@@ -212,8 +227,11 @@ alembic downgrade -1
 ```bash
 ruff check .
 mypy .
-pytest -q
+make run-tests
+make run-tests-with-coverage
 ```
+
+Development work is only considered complete when all four commands above pass and the coverage run confirms `100%` coverage.
 
 
 ## Folder Structure

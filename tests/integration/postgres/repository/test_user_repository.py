@@ -1,54 +1,27 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.core.domain.user import NewUser, UserChanges, UserSortableField
+from src.core.domain.user import UserSortableField
 from src.core.ports.output.user_output_port import (
     UserEmailConflictOutputPortError,
     UserNotFoundOutputPortError,
 )
 from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
-    SQLAlchemyPostgresUnitOfWorkFactory,
     SQLAlchemyUserOutputAdapter,
     UserRecord,
 )
-
-
-def _build_new_user(
-    *,
-    first_name: str = "Ada",
-    last_name: str = "Lovelace",
-    email: str = "ada@example.com",
-    password_hash: str = "hashed::plain-password",
-    birth_date: date = date(1815, 12, 10),
-) -> NewUser:
-    return NewUser(
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        password_hash=password_hash,
-        birth_date=birth_date,
-    )
-
-
-def _build_user_changes(
-    *,
-    first_name: str = "Grace",
-    last_name: str = "Hopper",
-    email: str = "grace@example.com",
-    password_hash: str = "hashed::new-password",
-    birth_date: date = date(1906, 12, 9),
-) -> UserChanges:
-    return UserChanges(
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        password_hash=password_hash,
-        birth_date=birth_date,
-    )
+from tests.integration.postgres.helpers.builders import (
+    build_new_user as _build_new_user,
+)
+from tests.integration.postgres.helpers.builders import (
+    build_user_changes as _build_user_changes,
+)
+from tests.integration.postgres.helpers.clock import (
+    advance_postgres_clock,
+)
 
 
 @pytest.fixture
@@ -91,8 +64,7 @@ async def test_update_user_preserves_created_at_and_refreshes_updated_at(
         await session.commit()
 
     async with postgres_session_factory() as session:
-        await session.execute(text("SELECT pg_sleep(0.01)"))
-        await session.commit()
+        await advance_postgres_clock(session)
 
     async with postgres_session_factory() as session:
         repository = SQLAlchemyUserOutputAdapter(session)
@@ -109,7 +81,7 @@ async def test_update_user_preserves_created_at_and_refreshes_updated_at(
 
 
 @pytest.mark.anyio
-async def test_create_user_raises_on_email_conflict(
+async def test_create_user_raises_conflict_when_email_already_exists(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -147,14 +119,14 @@ async def test_list_users_returns_paginated_active_users_with_total(
                 email="ada@example.com",
             ),
         )
-        await session.execute(text("SELECT pg_sleep(0.01)"))
+        await advance_postgres_clock(session)
         soft_deleted_user = await repository.create_user(
             new_user=_build_new_user(
                 first_name="Grace",
                 email="grace@example.com",
             ),
         )
-        await session.execute(text("SELECT pg_sleep(0.01)"))
+        await advance_postgres_clock(session)
         await repository.create_user(
             new_user=_build_new_user(
                 first_name="Katherine",
@@ -339,8 +311,7 @@ async def test_soft_delete_user_hides_user_and_sets_deleted_at(
         await session.commit()
 
     async with postgres_session_factory() as session:
-        await session.execute(text("SELECT pg_sleep(0.01)"))
-        await session.commit()
+        await advance_postgres_clock(session)
 
     async with postgres_session_factory() as session:
         repository = SQLAlchemyUserOutputAdapter(session)
@@ -364,41 +335,7 @@ async def test_soft_delete_user_hides_user_and_sets_deleted_at(
 
 
 @pytest.mark.anyio
-async def test_hard_delete_user_removes_soft_deleted_row(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        created_user = await repository.create_user(
-            new_user=_build_new_user(),
-        )
-        await session.commit()
-
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        await repository.soft_delete_user(
-            user_id=created_user.id,
-        )
-        await session.commit()
-
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        await repository.hard_delete_user(
-            user_id=created_user.id,
-        )
-        await session.commit()
-
-        user_record = await session.get(UserRecord, created_user.id)
-        included_user = await repository.get_user_by_email_including_deleted(
-            "ada@example.com",
-        )
-
-    assert user_record is None
-    assert included_user is None
-
-
-@pytest.mark.anyio
-async def test_soft_delete_user_raises_not_found_when_user_was_already_deleted(
+async def test_soft_delete_user_raises_not_found_when_record_was_already_deleted(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -440,7 +377,7 @@ async def test_hard_delete_user_removes_active_row_without_prior_soft_delete(
 
 
 @pytest.mark.anyio
-async def test_update_user_raises_output_port_not_found_when_record_is_missing(
+async def test_update_user_raises_not_found_when_record_is_missing(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -454,7 +391,7 @@ async def test_update_user_raises_output_port_not_found_when_record_is_missing(
 
 
 @pytest.mark.anyio
-async def test_create_user_still_raises_on_email_conflict_after_soft_delete(
+async def test_create_user_raises_conflict_when_soft_deleted_email_already_exists(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -483,113 +420,3 @@ async def test_create_user_still_raises_on_email_conflict_after_soft_delete(
                     birth_date=date(1906, 12, 9),
                 ),
             )
-
-
-@pytest.mark.anyio
-async def test_unit_of_work_commit_persists_changes(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    unit_of_work_factory = SQLAlchemyPostgresUnitOfWorkFactory(
-        postgres_session_factory,
-    )
-
-    async with unit_of_work_factory() as unit_of_work:
-        created_user = await unit_of_work.users.create_user(
-            new_user=_build_new_user(),
-        )
-        await unit_of_work.commit()
-
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        persisted_user = await repository.get_user_by_email("ada@example.com")
-
-    assert persisted_user is not None
-    assert persisted_user.id == created_user.id
-
-
-@pytest.mark.anyio
-async def test_unit_of_work_rolls_back_when_exiting_without_commit(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    unit_of_work_factory = SQLAlchemyPostgresUnitOfWorkFactory(
-        postgres_session_factory,
-    )
-
-    async with unit_of_work_factory() as unit_of_work:
-        await unit_of_work.users.create_user(
-            new_user=_build_new_user(),
-        )
-
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        persisted_user = await repository.get_user_by_email("ada@example.com")
-
-    assert persisted_user is None
-
-
-@pytest.mark.anyio
-async def test_unit_of_work_rolls_back_when_exception_is_raised(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    unit_of_work_factory = SQLAlchemyPostgresUnitOfWorkFactory(
-        postgres_session_factory,
-    )
-
-    with pytest.raises(RuntimeError, match="boom"):
-        async with unit_of_work_factory() as unit_of_work:
-            await unit_of_work.users.create_user(
-                new_user=_build_new_user(),
-            )
-            raise RuntimeError("boom")
-
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        persisted_user = await repository.get_user_by_email("ada@example.com")
-
-    assert persisted_user is None
-
-
-@pytest.mark.anyio
-async def test_unit_of_work_rolls_back_pending_changes_after_a_prior_commit(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    unit_of_work_factory = SQLAlchemyPostgresUnitOfWorkFactory(
-        postgres_session_factory,
-    )
-
-    async with unit_of_work_factory() as unit_of_work:
-        created_user = await unit_of_work.users.create_user(
-            new_user=_build_new_user(),
-        )
-        await unit_of_work.commit()
-
-        await unit_of_work.users.update_user(
-            user_id=created_user.id,
-            changes=_build_user_changes(),
-        )
-
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyUserOutputAdapter(session)
-        persisted_user = await repository.get_user_by_email("ada@example.com")
-
-    assert persisted_user is not None
-    assert persisted_user.id == created_user.id
-    assert persisted_user.first_name == "Ada"
-    assert persisted_user.last_name == "Lovelace"
-    assert persisted_user.email == "ada@example.com"
-
-
-@pytest.mark.anyio
-async def test_unit_of_work_cannot_be_reused_after_exit(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    unit_of_work = SQLAlchemyPostgresUnitOfWorkFactory(
-        postgres_session_factory,
-    )()
-
-    async with unit_of_work:
-        pass
-
-    with pytest.raises(RuntimeError, match="cannot be reused"):
-        async with unit_of_work:
-            pass

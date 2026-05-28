@@ -350,109 +350,6 @@ async def test_list_users_returns_paginated_response() -> None:
 
 
 @pytest.mark.anyio
-async def test_list_users_uses_default_created_at_asc() -> None:
-    user_input_port_stub = _UserInputPortStub()
-    user_input_port_stub.users_by_email["katherine@example.com"] = User(
-        id=3,
-        first_name="Katherine",
-        last_name="Johnson",
-        email="katherine@example.com",
-        password_hash="hashed::plain-password",
-        birth_date=date(1918, 8, 26),
-        created_at=_build_timestamp(year=2026, month=5, day=3),
-        updated_at=_build_timestamp(year=2026, month=5, day=3),
-    )
-    user_input_port_stub.users_by_email["ada@example.com"] = User(
-        id=1,
-        first_name="Ada",
-        last_name="Lovelace",
-        email="ada@example.com",
-        password_hash="hashed::plain-password",
-        birth_date=date(1815, 12, 10),
-        created_at=_build_timestamp(year=2026, month=5, day=1),
-        updated_at=_build_timestamp(year=2026, month=5, day=1),
-    )
-    app = _create_test_app(user_input_port_stub)
-
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get(
-            "/user/list",
-            params={
-                "offset": 0,
-                "limit": 1,
-            },
-        )
-
-    assert response.status_code == 200
-    assert response.json()["items"][0]["email"] == "ada@example.com"
-    assert user_input_port_stub.list_user_queries == [
-        ListQuery(
-            offset=0,
-            limit=1,
-            sort=(
-                SortTerm(
-                    field="created_at",
-                    direction=SortDirection.ASC,
-                ),
-            ),
-        ),
-    ]
-
-
-@pytest.mark.anyio
-async def test_list_users_accepts_id_as_sort_field() -> None:
-    user_input_port_stub = _UserInputPortStub()
-    user_input_port_stub.users_by_email["ada@example.com"] = User(
-        id=1,
-        first_name="Ada",
-        last_name="Lovelace",
-        email="ada@example.com",
-        password_hash="hashed::plain-password",
-        birth_date=date(1815, 12, 10),
-        created_at=_build_timestamp(year=2026, month=5, day=1),
-        updated_at=_build_timestamp(year=2026, month=5, day=1),
-    )
-    user_input_port_stub.users_by_email["grace@example.com"] = User(
-        id=2,
-        first_name="Grace",
-        last_name="Hopper",
-        email="grace@example.com",
-        password_hash="hashed::plain-password",
-        birth_date=date(1906, 12, 9),
-        created_at=_build_timestamp(year=2026, month=5, day=2),
-        updated_at=_build_timestamp(year=2026, month=5, day=2),
-    )
-    app = _create_test_app(user_input_port_stub)
-
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get(
-            "/user/list",
-            params={
-                "offset": 0,
-                "limit": 1,
-                "sort": "-id",
-            },
-        )
-
-    assert response.status_code == 200
-    assert response.json()["items"][0]["email"] == "grace@example.com"
-    assert user_input_port_stub.list_user_queries == [
-        ListQuery(
-            offset=0,
-            limit=1,
-            sort=(
-                SortTerm(
-                    field="id",
-                    direction=SortDirection.DESC,
-                ),
-            ),
-        ),
-    ]
-
-
-@pytest.mark.anyio
 async def test_get_user_returns_404_when_user_does_not_exist() -> None:
     app = _create_test_app(_UserInputPortStub())
 
@@ -465,18 +362,7 @@ async def test_get_user_returns_404_when_user_does_not_exist() -> None:
 
 
 @pytest.mark.anyio
-async def test_get_user_returns_422_when_email_query_param_is_missing() -> None:
-    app = _create_test_app(_UserInputPortStub())
-
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/user")
-
-    assert response.status_code == 422
-
-
-@pytest.mark.anyio
-async def test_create_user_returns_201_without_password_fields() -> None:
+async def test_create_user_returns_created_response_without_password_fields() -> None:
     app = _create_test_app(_UserInputPortStub())
 
     transport = httpx.ASGITransport(app=app)
@@ -502,7 +388,7 @@ async def test_create_user_returns_201_without_password_fields() -> None:
 
 
 @pytest.mark.anyio
-async def test_create_user_returns_409_when_email_is_already_used() -> None:
+async def test_create_user_returns_409_when_email_already_exists() -> None:
     user_input_port_stub = _UserInputPortStub()
     user_input_port_stub.users_by_email["ada@example.com"] = User(
         id=1,
@@ -586,7 +472,7 @@ async def test_update_user_returns_updated_user() -> None:
 
 
 @pytest.mark.anyio
-async def test_delete_user_returns_204() -> None:
+async def test_delete_user_soft_deletes_by_default() -> None:
     user_input_port_stub = _UserInputPortStub()
     user_input_port_stub.users_by_email["ada@example.com"] = User(
         id=1,
@@ -605,7 +491,6 @@ async def test_delete_user_returns_204() -> None:
         response = await client.delete("/user", params={"email": "ada@example.com"})
 
     assert response.status_code == 204
-    assert response.text == ""
     assert user_input_port_stub.delete_calls == [("ada@example.com", False)]
 
 

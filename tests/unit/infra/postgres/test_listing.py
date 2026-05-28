@@ -146,3 +146,84 @@ def test_build_order_clauses_supports_name_derived_internal_enum_fields() -> Non
         "created_at DESC",
         "id DESC",
     ]
+
+
+def test_build_order_clauses_supports_enum_member_name_lookup() -> None:
+    clauses = build_order_clauses(
+        sort_terms=(
+            SortTerm(
+                field="NAME",
+                direction=SortDirection.ASC,
+            ),
+        ),
+        sort_field_enum=_SortableField,
+        sort_columns=_build_sort_columns(),
+    )
+
+    assert [str(clause) for clause in clauses] == ["name ASC"]
+
+
+def test_build_order_clauses_appends_ascending_tie_break_when_requested() -> None:
+    clauses = build_order_clauses(
+        sort_terms=(
+            SortTerm(
+                field=_SortableField.NAME.value,
+                direction=SortDirection.ASC,
+            ),
+        ),
+        sort_field_enum=_SortableField,
+        sort_columns=_build_sort_columns(),
+        tie_break_field=_SortableField.ID,
+        tie_break_direction=SortDirection.ASC,
+    )
+
+    assert [str(clause) for clause in clauses] == [
+        "name ASC",
+        "id ASC",
+    ]
+
+
+def test_build_order_clauses_rejects_missing_tie_break_column() -> None:
+    with pytest.raises(ValueError, match="Unsupported sort field 'id'"):
+        build_order_clauses(
+            sort_terms=(
+                SortTerm(
+                    field=_SortableField.NAME.value,
+                    direction=SortDirection.ASC,
+                ),
+            ),
+            sort_field_enum=_SortableField,
+            sort_columns={_SortableField.NAME: column("name")},
+            tie_break_field=_SortableField.ID,
+        )
+
+
+def test_build_order_clauses_uses_internal_enum_name_for_missing_tie_break() -> None:
+    with pytest.raises(ValueError, match="Unsupported sort field 'id'"):
+        build_order_clauses(
+            sort_terms=(
+                SortTerm(
+                    field=_InternalSortableField.CREATED_AT.name.lower(),
+                    direction=SortDirection.ASC,
+                ),
+            ),
+            sort_field_enum=_InternalSortableField,
+            sort_columns={
+                _InternalSortableField.CREATED_AT: column("created_at"),
+            },
+            tie_break_field=_InternalSortableField.ID,
+        )
+
+
+def test_build_order_clauses_raises_when_sort_field_has_no_column_mapping() -> None:
+    with pytest.raises(ValueError, match="Unsupported sort field 'name'"):
+        build_order_clauses(
+            sort_terms=(
+                SortTerm(
+                    field=_SortableField.NAME.value,
+                    direction=SortDirection.ASC,
+                ),
+            ),
+            sort_field_enum=_SortableField,
+            sort_columns={_SortableField.ID: column("id")},
+        )

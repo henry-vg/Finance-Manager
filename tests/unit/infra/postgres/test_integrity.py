@@ -52,6 +52,12 @@ def test_get_constraint_name_falls_back_to_diag() -> None:
     assert get_constraint_name(exc) == "uq_users_email"
 
 
+def test_get_constraint_name_returns_none_when_orig_is_missing() -> None:
+    exc = IntegrityError("statement", {}, None)
+
+    assert get_constraint_name(exc) is None
+
+
 def test_is_unique_violation_matches_named_constraint() -> None:
     exc = _build_integrity_error(
         _FakeDatabaseError(
@@ -83,3 +89,21 @@ def test_is_unique_violation_rejects_other_constraints() -> None:
     )
 
     assert is_unique_violation(exc, constraint_name="uq_users_email") is False
+
+
+def test_is_unique_violation_rejects_missing_orig_and_non_unique_sqlstate() -> None:
+    missing_orig_exc = IntegrityError("statement", {}, None)
+    other_sqlstate_exc = _build_integrity_error(
+        _FakeDatabaseError(
+            sqlstate="23503",
+            constraint_name="uq_users_email",
+        ),
+    )
+
+    assert (
+        is_unique_violation(missing_orig_exc, constraint_name="uq_users_email") is False
+    )
+    assert (
+        is_unique_violation(other_sqlstate_exc, constraint_name="uq_users_email")
+        is False
+    )

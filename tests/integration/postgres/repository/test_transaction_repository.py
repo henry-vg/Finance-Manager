@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -8,14 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.core.domain.ledger_account import (
     LedgerAccountKind,
     LedgerAccountType,
-    NewLedgerAccount,
 )
-from src.core.domain.tag import NewTag
 from src.core.domain.transaction import (
-    NewEntry,
-    NewEntryTag,
-    NewTransaction,
-    TransactionChanges,
     TransactionMustBePendingError,
     TransactionStatus,
     TransactionStatusTransitionNotAllowedError,
@@ -28,6 +22,12 @@ from src.infra.postgres import (
     TransactionRecord,
 )
 from src.infra.postgres.aggregates.transaction import SQLAlchemyTransactionRepository
+from tests.integration.postgres.helpers.builders import (
+    build_new_ledger_account,
+    build_new_tag,
+    build_new_transaction,
+    build_transaction_changes,
+)
 
 
 async def _create_ledger_account(
@@ -39,11 +39,10 @@ async def _create_ledger_account(
 ) -> int:
     adapter = SQLAlchemyLedgerAccountOutputAdapter(session)
     ledger_account = await adapter.create_ledger_account(
-        NewLedgerAccount(
+        build_new_ledger_account(
             title=title,
             type=type,
             kind=kind,
-            currency_iso_code="BRL",
         ),
     )
     return ledger_account.id
@@ -55,42 +54,36 @@ async def _create_tag(
     title: str,
 ) -> int:
     adapter = SQLAlchemyTagOutputAdapter(session)
-    tag = await adapter.create_tag(NewTag(title=title))
+    tag = await adapter.create_tag(build_new_tag(title=title))
     return tag.id
 
 
-def _build_new_transaction(
+async def _create_transaction_dependencies(
+    session: AsyncSession,
     *,
-    expense_ledger_account_id: int,
-    credit_card_ledger_account_id: int,
-    food_tag_id: int,
-    travel_tag_id: int,
-    status: TransactionStatus = TransactionStatus.PENDING,
-) -> NewTransaction:
-    return NewTransaction(
-        effective_at=datetime(2026, 5, 11, 14, 30, tzinfo=UTC),
-        title="Airline tickets",
-        description="Family vacation purchase",
-        status=status,
-        currency="BRL",
-        entries=(
-            NewEntry(
-                ledger_account_id=expense_ledger_account_id,
-                amount=Decimal("1200.00"),
-                statement_closing_date=None,
-                statement_due_date=None,
-                entry_tags=(
-                    NewEntryTag(tag_id=food_tag_id),
-                    NewEntryTag(tag_id=travel_tag_id),
-                ),
-            ),
-            NewEntry(
-                ledger_account_id=credit_card_ledger_account_id,
-                amount=Decimal("-1200.00"),
-                statement_closing_date=date(2026, 5, 31),
-                statement_due_date=date(2026, 6, 10),
-            ),
-        ),
+    food_tag_title: str = "Food",
+    travel_tag_title: str = "Travel",
+) -> tuple[int, int, int, int]:
+    expense_ledger_account_id = await _create_ledger_account(
+        session,
+        title="Travel Expense",
+        type=LedgerAccountType.EXPENSE,
+        kind=LedgerAccountKind.OTHER,
+    )
+    credit_card_ledger_account_id = await _create_ledger_account(
+        session,
+        title="Visa Platinum",
+        type=LedgerAccountType.LIABILITY,
+        kind=LedgerAccountKind.CREDIT_CARD,
+    )
+    food_tag_id = await _create_tag(session, title=food_tag_title)
+    travel_tag_id = await _create_tag(session, title=travel_tag_title)
+
+    return (
+        expense_ledger_account_id,
+        credit_card_ledger_account_id,
+        food_tag_id,
+        travel_tag_id,
     )
 
 
@@ -99,24 +92,16 @@ async def test_create_transaction_persists_transaction_entries_and_entry_tags(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
-        )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        food_tag_id = await _create_tag(session, title="Food")
-        travel_tag_id = await _create_tag(session, title="Travel")
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            food_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(session)
         repository = SQLAlchemyTransactionRepository(session)
 
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=food_tag_id,
@@ -199,24 +184,16 @@ async def test_create_transaction_persists_explicit_effective_status(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
-        )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        food_tag_id = await _create_tag(session, title="Food")
-        travel_tag_id = await _create_tag(session, title="Travel")
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            food_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(session)
         repository = SQLAlchemyTransactionRepository(session)
 
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=food_tag_id,
@@ -241,24 +218,16 @@ async def test_create_transaction_persists_explicit_canceled_status(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
-        )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        food_tag_id = await _create_tag(session, title="Food")
-        travel_tag_id = await _create_tag(session, title="Travel")
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            food_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(session)
         repository = SQLAlchemyTransactionRepository(session)
 
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=food_tag_id,
@@ -283,23 +252,15 @@ async def test_get_transaction_by_id_hydrates_private_transaction_graph(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
-        )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        food_tag_id = await _create_tag(session, title="Food")
-        travel_tag_id = await _create_tag(session, title="Travel")
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            food_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(session)
         repository = SQLAlchemyTransactionRepository(session)
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=food_tag_id,
@@ -340,23 +301,18 @@ async def test_update_transaction_replaces_entries_and_entry_tags(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            groceries_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(
             session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
+            food_tag_title="Groceries",
         )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        groceries_tag_id = await _create_tag(session, title="Groceries")
-        travel_tag_id = await _create_tag(session, title="Travel")
         repository = SQLAlchemyTransactionRepository(session)
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,
@@ -369,26 +325,10 @@ async def test_update_transaction_replaces_entries_and_entry_tags(
         repository = SQLAlchemyTransactionRepository(session)
         updated_transaction = await repository.update_transaction(
             created_transaction.transaction.id,
-            TransactionChanges(
-                effective_at=datetime(2026, 5, 12, 9, 0, tzinfo=UTC),
-                title="Hotel reservation",
-                description="Updated pending purchase",
-                currency="BRL",
-                entries=(
-                    NewEntry(
-                        ledger_account_id=expense_ledger_account_id,
-                        amount=Decimal("900.00"),
-                        statement_closing_date=None,
-                        statement_due_date=None,
-                        entry_tags=(NewEntryTag(tag_id=travel_tag_id),),
-                    ),
-                    NewEntry(
-                        ledger_account_id=credit_card_ledger_account_id,
-                        amount=Decimal("-900.00"),
-                        statement_closing_date=date(2026, 6, 30),
-                        statement_due_date=date(2026, 7, 10),
-                    ),
-                ),
+            build_transaction_changes(
+                expense_ledger_account_id=expense_ledger_account_id,
+                credit_card_ledger_account_id=credit_card_ledger_account_id,
+                travel_tag_id=travel_tag_id,
             ),
         )
         await session.commit()
@@ -446,23 +386,18 @@ async def test_update_transaction_rejects_non_pending_transaction(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            groceries_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(
             session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
+            food_tag_title="Groceries",
         )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        groceries_tag_id = await _create_tag(session, title="Groceries")
-        travel_tag_id = await _create_tag(session, title="Travel")
         repository = SQLAlchemyTransactionRepository(session)
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,
@@ -478,26 +413,10 @@ async def test_update_transaction_rejects_non_pending_transaction(
         with pytest.raises(TransactionMustBePendingError):
             await repository.update_transaction(
                 created_transaction.transaction.id,
-                TransactionChanges(
-                    effective_at=datetime(2026, 5, 12, 9, 0, tzinfo=UTC),
-                    title="Hotel reservation",
-                    description="Updated pending purchase",
-                    currency="BRL",
-                    entries=(
-                        NewEntry(
-                            ledger_account_id=expense_ledger_account_id,
-                            amount=Decimal("900.00"),
-                            statement_closing_date=None,
-                            statement_due_date=None,
-                            entry_tags=(NewEntryTag(tag_id=travel_tag_id),),
-                        ),
-                        NewEntry(
-                            ledger_account_id=credit_card_ledger_account_id,
-                            amount=Decimal("-900.00"),
-                            statement_closing_date=date(2026, 6, 30),
-                            statement_due_date=date(2026, 7, 10),
-                        ),
-                    ),
+                build_transaction_changes(
+                    expense_ledger_account_id=expense_ledger_account_id,
+                    credit_card_ledger_account_id=credit_card_ledger_account_id,
+                    travel_tag_id=travel_tag_id,
                 ),
             )
 
@@ -507,23 +426,18 @@ async def test_mark_transaction_effective_updates_status_without_replacing_entri
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            groceries_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(
             session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
+            food_tag_title="Groceries",
         )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        groceries_tag_id = await _create_tag(session, title="Groceries")
-        travel_tag_id = await _create_tag(session, title="Travel")
         repository = SQLAlchemyTransactionRepository(session)
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,
@@ -585,23 +499,18 @@ async def test_cancel_transaction_allows_effective_status_without_replacing_entr
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            groceries_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(
             session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
+            food_tag_title="Groceries",
         )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        groceries_tag_id = await _create_tag(session, title="Groceries")
-        travel_tag_id = await _create_tag(session, title="Travel")
         repository = SQLAlchemyTransactionRepository(session)
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,
@@ -664,23 +573,18 @@ async def test_cancel_transaction_rejects_terminal_canceled_status(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
-        expense_ledger_account_id = await _create_ledger_account(
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            groceries_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(
             session,
-            title="Travel Expense",
-            type=LedgerAccountType.EXPENSE,
-            kind=LedgerAccountKind.OTHER,
+            food_tag_title="Groceries",
         )
-        credit_card_ledger_account_id = await _create_ledger_account(
-            session,
-            title="Visa Platinum",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-        )
-        groceries_tag_id = await _create_tag(session, title="Groceries")
-        travel_tag_id = await _create_tag(session, title="Travel")
         repository = SQLAlchemyTransactionRepository(session)
         created_transaction = await repository.create_transaction(
-            _build_new_transaction(
+            build_new_transaction(
                 expense_ledger_account_id=expense_ledger_account_id,
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,

@@ -380,6 +380,35 @@ def _get_created_unit_of_work_output_port(
 
 
 @pytest.mark.anyio
+async def test_update_user_raises_when_current_user_does_not_exist() -> None:
+    use_case, _ = _build_user_usecase(_UserOutputPortStub())
+
+    with pytest.raises(UserNotFoundError):
+        await use_case.update_user(
+            current_email="missing@example.com",
+            data=_build_update_user_data(),
+        )
+
+
+@pytest.mark.anyio
+async def test_get_user_raises_when_user_does_not_exist() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    use_case, unit_of_work_output_port_factory = _build_user_usecase(
+        user_output_port_stub,
+    )
+
+    with pytest.raises(UserNotFoundError):
+        await use_case.get_user(
+            email="missing@example.com",
+        )
+
+    unit_of_work_output_port = _get_created_unit_of_work_output_port(
+        unit_of_work_output_port_factory,
+    )
+    assert unit_of_work_output_port.rollback_calls == 1
+
+
+@pytest.mark.anyio
 async def test_get_user_returns_existing_user() -> None:
     existing_user = User(
         id=1,
@@ -470,24 +499,6 @@ async def test_list_users_returns_paginated_active_users_without_commit() -> Non
         unit_of_work_output_port_factory,
     )
     assert unit_of_work_output_port.commit_calls == 0
-
-
-@pytest.mark.anyio
-async def test_get_user_raises_when_user_does_not_exist() -> None:
-    user_output_port_stub = _UserOutputPortStub()
-    use_case, unit_of_work_output_port_factory = _build_user_usecase(
-        user_output_port_stub,
-    )
-
-    with pytest.raises(UserNotFoundError):
-        await use_case.get_user(
-            email="missing@example.com",
-        )
-
-    unit_of_work_output_port = _get_created_unit_of_work_output_port(
-        unit_of_work_output_port_factory,
-    )
-    assert unit_of_work_output_port.rollback_calls == 1
 
 
 @pytest.mark.anyio
@@ -758,7 +769,7 @@ async def test_update_user_translates_output_port_not_found_to_domain_error() ->
 
 
 @pytest.mark.anyio
-async def test_delete_user_soft_deletes_existing_user_by_default() -> None:
+async def test_delete_user_soft_deletes_by_default() -> None:
     user_output_port_stub = _UserOutputPortStub()
     user_output_port_stub.users_by_id[1] = User(
         id=1,
@@ -806,7 +817,7 @@ async def test_delete_user_raises_when_user_does_not_exist() -> None:
 
 
 @pytest.mark.anyio
-async def test_delete_user_hard_deletes_soft_deleted_user_when_requested() -> None:
+async def test_delete_user_hard_deletes_when_requested() -> None:
     user_output_port_stub = _UserOutputPortStub()
     user_output_port_stub.users_by_id[1] = User(
         id=1,
@@ -835,3 +846,54 @@ async def test_delete_user_hard_deletes_soft_deleted_user_when_requested() -> No
         unit_of_work_output_port_factory,
     )
     assert unit_of_work_output_port.commit_calls == 1
+
+
+@pytest.mark.anyio
+async def test_delete_user_translates_output_port_not_found_on_soft_delete() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.users_by_id[1] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+
+    async def raising_soft_delete_user(user_id: int) -> None:
+        del user_id
+        raise UserNotFoundOutputPortError()
+
+    user_output_port_stub.soft_delete_user = raising_soft_delete_user
+    use_case, _ = _build_user_usecase(user_output_port_stub)
+
+    with pytest.raises(UserNotFoundError):
+        await use_case.delete_user(email="ada@example.com")
+
+
+@pytest.mark.anyio
+async def test_delete_user_translates_output_port_not_found_on_hard_delete() -> None:
+    user_output_port_stub = _UserOutputPortStub()
+    user_output_port_stub.users_by_id[1] = User(
+        id=1,
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        password_hash="hashed::plain-password",
+        birth_date=date(1815, 12, 10),
+        created_at=_build_timestamp(year=2026, month=5, day=1),
+        updated_at=_build_timestamp(year=2026, month=5, day=2),
+    )
+    user_output_port_stub.soft_deleted_user_ids.append(1)
+
+    async def raising_hard_delete_user(user_id: int) -> None:
+        del user_id
+        raise UserNotFoundOutputPortError()
+
+    user_output_port_stub.hard_delete_user = raising_hard_delete_user
+    use_case, _ = _build_user_usecase(user_output_port_stub)
+
+    with pytest.raises(UserNotFoundError):
+        await use_case.delete_user(email="ada@example.com", hard_delete=True)

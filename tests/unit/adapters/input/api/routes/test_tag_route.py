@@ -116,6 +116,18 @@ async def test_get_tag_returns_tag_response() -> None:
 
 
 @pytest.mark.anyio
+async def test_get_tag_returns_404_when_tag_does_not_exist() -> None:
+    app = _create_test_app(_TagInputPortStub())
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/tag", params={"id": 1})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Tag not found."
+
+
+@pytest.mark.anyio
 async def test_list_tags_returns_paginated_response() -> None:
     tag_input_port_stub = _TagInputPortStub()
     tag_input_port_stub.tags_by_id[1] = Tag(
@@ -140,8 +152,25 @@ async def test_list_tags_returns_paginated_response() -> None:
         )
 
     assert response.status_code == 200
-    assert response.json()["total"] == 2
-    assert response.json()["items"][0]["title"] == "Food"
+    assert response.json() == {
+        "items": [
+            {
+                "id": 1,
+                "title": "Food",
+                "created_at": "2026-05-01T00:00:00.000Z",
+                "updated_at": "2026-05-01T00:00:00.000Z",
+            },
+            {
+                "id": 2,
+                "title": "Travel",
+                "created_at": "2026-05-02T00:00:00.000Z",
+                "updated_at": "2026-05-02T00:00:00.000Z",
+            },
+        ],
+        "offset": 0,
+        "limit": 10,
+        "total": 2,
+    }
     assert tag_input_port_stub.list_tag_queries == [
         ListQuery(
             offset=0,
@@ -160,7 +189,12 @@ async def test_create_tag_returns_created_response() -> None:
         response = await client.post("/tag", json={"title": "Food"})
 
     assert response.status_code == 201
-    assert response.json()["title"] == "Food"
+    assert response.json() == {
+        "id": 1,
+        "title": "Food",
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-01T00:00:00.000Z",
+    }
 
 
 @pytest.mark.anyio
@@ -196,3 +230,25 @@ async def test_delete_tag_soft_deletes_by_default() -> None:
 
     assert response.status_code == 204
     assert tag_input_port_stub.delete_calls == [(1, False)]
+
+
+@pytest.mark.anyio
+async def test_delete_tag_forwards_hard_delete_query_param() -> None:
+    tag_input_port_stub = _TagInputPortStub()
+    tag_input_port_stub.tags_by_id[1] = Tag(
+        id=1,
+        title="Food",
+        created_at=_build_timestamp(1),
+        updated_at=_build_timestamp(1),
+    )
+    app = _create_test_app(tag_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.delete(
+            "/tag",
+            params={"id": 1, "hard_delete": "true"},
+        )
+
+    assert response.status_code == 204
+    assert tag_input_port_stub.delete_calls == [(1, True)]

@@ -156,15 +156,6 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         response = await client.get("/ledger-account", params={"id": 1})
 
     assert response.status_code == 200
-    assert list(response.json().keys()) == [
-        "id",
-        "created_at",
-        "updated_at",
-        "title",
-        "type",
-        "kind",
-        "currency_iso_code",
-    ]
     assert response.json() == {
         "id": 1,
         "created_at": "2026-05-01T00:00:00.000Z",
@@ -174,6 +165,20 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         "kind": "bank_account",
         "currency_iso_code": "BRL",
     }
+
+
+@pytest.mark.anyio
+async def test_get_ledger_account_returns_404_when_ledger_account_does_not_exist() -> (
+    None
+):
+    app = _create_test_app(_LedgerAccountInputPortStub())
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/ledger-account", params={"id": 1})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Ledger account not found."
 
 
 @pytest.mark.anyio
@@ -207,8 +212,31 @@ async def test_list_ledger_accounts_returns_paginated_response() -> None:
         )
 
     assert response.status_code == 200
-    assert response.json()["total"] == 2
-    assert response.json()["items"][0]["title"] == "Credit Card"
+    assert response.json() == {
+        "items": [
+            {
+                "id": 1,
+                "created_at": "2026-05-02T00:00:00.000Z",
+                "updated_at": "2026-05-02T00:00:00.000Z",
+                "title": "Credit Card",
+                "type": "liability",
+                "kind": "credit_card",
+                "currency_iso_code": "USD",
+            },
+            {
+                "id": 2,
+                "created_at": "2026-05-01T00:00:00.000Z",
+                "updated_at": "2026-05-01T00:00:00.000Z",
+                "title": "Main Account",
+                "type": "asset",
+                "kind": "bank_account",
+                "currency_iso_code": "BRL",
+            },
+        ],
+        "offset": 0,
+        "limit": 10,
+        "total": 2,
+    }
     assert ledger_account_input_port_stub.list_ledger_account_queries == [
         ListQuery(
             offset=0,
@@ -235,8 +263,15 @@ async def test_create_ledger_account_returns_created_response() -> None:
         )
 
     assert response.status_code == 201
-    assert response.json()["title"] == "Main Account"
-    assert response.json()["type"] == "asset"
+    assert response.json() == {
+        "id": 1,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-01T00:00:00.000Z",
+        "title": "Main Account",
+        "type": "asset",
+        "kind": "bank_account",
+        "currency_iso_code": "BRL",
+    }
 
 
 @pytest.mark.anyio
@@ -344,3 +379,28 @@ async def test_delete_ledger_account_soft_deletes_by_default() -> None:
 
     assert response.status_code == 204
     assert ledger_account_input_port_stub.delete_calls == [(1, False)]
+
+
+@pytest.mark.anyio
+async def test_delete_ledger_account_forwards_hard_delete_query_param() -> None:
+    ledger_account_input_port_stub = _LedgerAccountInputPortStub()
+    ledger_account_input_port_stub.ledger_accounts_by_id[1] = LedgerAccount(
+        id=1,
+        title="Main Account",
+        type=LedgerAccountType.ASSET,
+        kind=LedgerAccountKind.BANK_ACCOUNT,
+        currency_iso_code="BRL",
+        created_at=_build_timestamp(1),
+        updated_at=_build_timestamp(1),
+    )
+    app = _create_test_app(ledger_account_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.delete(
+            "/ledger-account",
+            params={"id": 1, "hard_delete": "true"},
+        )
+
+    assert response.status_code == 204
+    assert ledger_account_input_port_stub.delete_calls == [(1, True)]

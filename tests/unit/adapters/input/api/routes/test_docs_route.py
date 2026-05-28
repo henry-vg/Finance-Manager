@@ -6,7 +6,7 @@ from src.adapters.input.api.routes.docs_route import create_router
 
 
 @pytest.mark.anyio
-async def test_docs_route_returns_html_with_dark_mode_enabled():
+async def test_get_docs_returns_html_with_dark_mode_enabled():
     app = FastAPI(docs_url=None)
     app.include_router(
         create_router(
@@ -28,7 +28,7 @@ async def test_docs_route_returns_html_with_dark_mode_enabled():
 
 
 @pytest.mark.anyio
-async def test_docs_route_returns_html_without_dark_mode_script():
+async def test_get_docs_returns_html_without_dark_mode_script_when_disabled():
     app = FastAPI(docs_url=None)
     app.include_router(
         create_router(

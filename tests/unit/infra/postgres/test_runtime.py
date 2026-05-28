@@ -9,6 +9,7 @@ from src.infra.postgres.runtime import (
     create_postgres_engine,
     create_postgres_session_factory,
     dispose_postgres_engine,
+    get_postgres_session,
 )
 from src.infra.settings.models import PostgresSettings
 
@@ -82,6 +83,31 @@ class _FakeEngine:
         self.disposed = True
 
 
+class _FakeSessionContext:
+    def __init__(self, session: object) -> None:
+        self._session = session
+        self.entered = False
+        self.exited = False
+
+    async def __aenter__(self) -> object:
+        self.entered = True
+        return self._session
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        del exc_type
+        del exc
+        del tb
+        self.exited = True
+
+
+class _FakeSessionFactory:
+    def __init__(self, session: object) -> None:
+        self.context = _FakeSessionContext(session)
+
+    def __call__(self) -> _FakeSessionContext:
+        return self.context
+
+
 @pytest.mark.anyio
 async def test_postgres_health_adapter_returns_ok_when_query_succeeds() -> None:
     adapter = SQLAlchemyPostgresHealthAdapter(engine=cast(Any, _FakeEngine()))
@@ -109,3 +135,17 @@ async def test_dispose_postgres_engine_calls_engine_dispose() -> None:
     await dispose_postgres_engine(cast(Any, engine))
 
     assert engine.disposed is True
+
+
+@pytest.mark.anyio
+async def test_get_postgres_session_yields_session_from_factory_context() -> None:
+    session = object()
+    session_factory = _FakeSessionFactory(session)
+
+    produced_sessions = []
+    async for produced_session in get_postgres_session(cast(Any, session_factory)):
+        produced_sessions.append(produced_session)
+
+    assert produced_sessions == [session]
+    assert session_factory.context.entered is True
+    assert session_factory.context.exited is True

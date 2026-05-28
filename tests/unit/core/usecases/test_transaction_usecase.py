@@ -764,3 +764,14 @@ async def test_cancel_transaction_allows_effective_transaction() -> None:
     assert result.transaction.status == TransactionStatus.CANCELED
     assert transactions.canceled_transactions == [1]
     assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_get_transaction_returns_existing_transaction() -> None:
+    use_case, transactions, _, _, _ = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+
+    result = await use_case.get_transaction(1)
+
+    assert result.transaction.id == 1
+    assert len(result.entries) == 2

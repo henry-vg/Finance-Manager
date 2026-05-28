@@ -14,6 +14,7 @@ from src.core.domain.currency import (
 )
 from src.core.ports.output.currency_output_port import (
     CurrencyISOCodeConflictOutputPortError,
+    CurrencyNotFoundOutputPortError,
     CurrencyOutputPort,
 )
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
@@ -201,7 +202,7 @@ async def test_create_currency_normalizes_iso_code_and_commits() -> None:
 
 
 @pytest.mark.anyio
-async def test_create_currency_translates_code_conflict() -> None:
+async def test_create_currency_translates_iso_code_conflict_output_port_error() -> None:
     currencies = _CurrencyOutputPortStub()
     currencies.create_error = CurrencyISOCodeConflictOutputPortError()
     use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(currencies)))
@@ -263,7 +264,7 @@ async def test_update_currency_raises_when_currency_does_not_exist() -> None:
 
 
 @pytest.mark.anyio
-async def test_update_currency_translates_output_errors() -> None:
+async def test_update_currency_translates_iso_code_conflict_output_port_error() -> None:
     currencies = _CurrencyOutputPortStub()
     created = await currencies.create_currency(
         NewCurrency(
@@ -344,3 +345,134 @@ async def test_list_currencies_returns_active_currencies() -> None:
     )
 
     assert [currency.iso_code for currency in page.items] == ["EUR"]
+
+
+@pytest.mark.anyio
+async def test_get_currency_returns_existing_currency() -> None:
+    currencies = _CurrencyOutputPortStub()
+    created = await currencies.create_currency(
+        NewCurrency(
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+        ),
+    )
+    use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(currencies)))
+
+    result = await use_case.get_currency(created.id)
+
+    assert result == created
+
+
+@pytest.mark.anyio
+async def test_update_currency_replaces_fields_and_commits() -> None:
+    currencies = _CurrencyOutputPortStub()
+    created = await currencies.create_currency(
+        NewCurrency(
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+        ),
+    )
+    unit_of_work = _UnitOfWorkStub(currencies)
+    use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    result = await use_case.update_currency(
+        created.id,
+        UpdateCurrencyData(
+            iso_code=" brl ",
+            iso_numeric="986 ",
+            name=" Brazilian Real ",
+            symbol=" R$ ",
+            decimal_places=2,
+        ),
+    )
+
+    assert result.iso_code == "BRL"
+    assert result.iso_numeric == "986"
+    assert result.name == "Brazilian Real"
+    assert result.symbol == "R$"
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_update_currency_translates_output_port_not_found() -> None:
+    currencies = _CurrencyOutputPortStub()
+    created = await currencies.create_currency(
+        NewCurrency(
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+        ),
+    )
+    currencies.update_error = CurrencyNotFoundOutputPortError()
+    use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(currencies)))
+
+    with pytest.raises(CurrencyNotFoundError):
+        await use_case.update_currency(
+            created.id,
+            UpdateCurrencyData(
+                iso_code="BRL",
+                iso_numeric="986",
+                name="Brazilian Real",
+                symbol="R$",
+                decimal_places=2,
+            ),
+        )
+
+
+@pytest.mark.anyio
+async def test_delete_currency_hard_deletes_when_requested() -> None:
+    currencies = _CurrencyOutputPortStub()
+    created = await currencies.create_currency(
+        NewCurrency(
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+        ),
+    )
+    await currencies.soft_delete_currency(created.id)
+    unit_of_work = _UnitOfWorkStub(currencies)
+    use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    await use_case.delete_currency(created.id, hard_delete=True)
+
+    assert created.id not in currencies.currencies
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_delete_currency_translates_output_port_not_found() -> None:
+    currencies = _CurrencyOutputPortStub()
+    created = await currencies.create_currency(
+        NewCurrency(
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+        ),
+    )
+    currencies.delete_error = CurrencyNotFoundOutputPortError()
+    use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(currencies)))
+
+    with pytest.raises(CurrencyNotFoundError):
+        await use_case.delete_currency(created.id)
+
+
+@pytest.mark.anyio
+async def test_delete_currency_raises_when_currency_does_not_exist() -> None:
+    use_case = CurrencyUseCase(
+        _UnitOfWorkFactoryStub(_UnitOfWorkStub(_CurrencyOutputPortStub())),
+    )
+
+    with pytest.raises(CurrencyNotFoundError):
+        await use_case.delete_currency(999)

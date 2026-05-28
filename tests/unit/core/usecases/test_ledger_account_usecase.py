@@ -282,7 +282,7 @@ async def test_create_ledger_account_raises_for_unsupported_currency_iso_code() 
 
 
 @pytest.mark.anyio
-async def test_get_ledger_account_raises_for_missing_account() -> None:
+async def test_get_ledger_account_raises_when_ledger_account_does_not_exist() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
     use_case = LedgerAccountUseCase(
         _UnitOfWorkFactoryStub(_UnitOfWorkStub(ledger_accounts)),
@@ -304,7 +304,7 @@ async def test_update_ledger_account_raises_when_account_does_not_exist() -> Non
 
 
 @pytest.mark.anyio
-async def test_update_ledger_account_translates_not_found_output_error() -> None:
+async def test_update_ledger_account_translates_output_port_not_found_error() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
     ledger_accounts.ledger_accounts[1] = LedgerAccount(
         id=1,
@@ -377,3 +377,181 @@ async def test_list_ledger_accounts_returns_active_accounts() -> None:
     )
 
     assert [ledger_account.title for ledger_account in page.items] == ["Credit Card"]
+
+
+@pytest.mark.anyio
+async def test_get_ledger_account_returns_existing_account() -> None:
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    created = await ledger_accounts.create_ledger_account(
+        NewLedgerAccount(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code="BRL",
+        ),
+    )
+    use_case = LedgerAccountUseCase(
+        _UnitOfWorkFactoryStub(_UnitOfWorkStub(ledger_accounts)),
+    )
+
+    result = await use_case.get_ledger_account(created.id)
+
+    assert result == created
+
+
+@pytest.mark.anyio
+async def test_create_ledger_account_normalizes_currency_iso_code_before_lookup() -> (
+    None
+):
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    currencies = _CurrencyOutputPortStub()
+    unit_of_work = _UnitOfWorkStub(ledger_accounts, currencies)
+    use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    result = await use_case.create_ledger_account(
+        CreateLedgerAccountData(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code=" brl ",
+        ),
+    )
+
+    assert result.currency_iso_code == "BRL"
+    assert currencies.queried_iso_codes == ["BRL"]
+
+
+@pytest.mark.anyio
+async def test_update_ledger_account_replaces_fields_and_commits() -> None:
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    created = await ledger_accounts.create_ledger_account(
+        NewLedgerAccount(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code="BRL",
+        ),
+    )
+    unit_of_work = _UnitOfWorkStub(ledger_accounts)
+    use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    result = await use_case.update_ledger_account(
+        created.id,
+        UpdateLedgerAccountData(
+            title="Credit Card",
+            type=LedgerAccountType.LIABILITY,
+            kind=LedgerAccountKind.CREDIT_CARD,
+            currency_iso_code=" usd ",
+        ),
+    )
+
+    assert result.title == "Credit Card"
+    assert result.type == LedgerAccountType.LIABILITY
+    assert result.kind == LedgerAccountKind.CREDIT_CARD
+    assert result.currency_iso_code == "USD"
+    assert unit_of_work.currencies.queried_iso_codes[-1] == "USD"
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_update_ledger_account_raises_for_unsupported_currency_iso_code() -> None:
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    created = await ledger_accounts.create_ledger_account(
+        NewLedgerAccount(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code="BRL",
+        ),
+    )
+    unit_of_work = _UnitOfWorkStub(ledger_accounts)
+    use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    with pytest.raises(LedgerAccountCurrencyISOCodeNotSupportedError):
+        await use_case.update_ledger_account(
+            created.id,
+            UpdateLedgerAccountData(
+                title="Credit Card",
+                type=LedgerAccountType.LIABILITY,
+                kind=LedgerAccountKind.CREDIT_CARD,
+                currency_iso_code="JPY",
+            ),
+        )
+
+    assert unit_of_work.committed is False
+
+
+@pytest.mark.anyio
+async def test_delete_ledger_account_hard_deletes_when_requested() -> None:
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    created = await ledger_accounts.create_ledger_account(
+        NewLedgerAccount(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code="BRL",
+        ),
+    )
+    await ledger_accounts.soft_delete_ledger_account(created.id)
+    unit_of_work = _UnitOfWorkStub(ledger_accounts)
+    use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    await use_case.delete_ledger_account(created.id, hard_delete=True)
+
+    assert created.id not in ledger_accounts.ledger_accounts
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_delete_ledger_account_translates_output_port_not_found_error() -> None:
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    created = await ledger_accounts.create_ledger_account(
+        NewLedgerAccount(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code="BRL",
+        ),
+    )
+    ledger_accounts.delete_error = LedgerAccountNotFoundOutputPortError()
+    use_case = LedgerAccountUseCase(
+        _UnitOfWorkFactoryStub(_UnitOfWorkStub(ledger_accounts)),
+    )
+
+    with pytest.raises(LedgerAccountNotFoundError):
+        await use_case.delete_ledger_account(created.id)
+
+
+@pytest.mark.anyio
+async def test_delete_ledger_account_raises_when_ledger_account_does_not_exist() -> (
+    None
+):
+    use_case = LedgerAccountUseCase(
+        _UnitOfWorkFactoryStub(_UnitOfWorkStub(_LedgerAccountOutputPortStub())),
+    )
+
+    with pytest.raises(LedgerAccountNotFoundError):
+        await use_case.delete_ledger_account(999)
+
+
+@pytest.mark.anyio
+async def test_delete_ledger_account_translates_output_port_not_found_on_hard_delete() -> (
+    None
+):
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    created = await ledger_accounts.create_ledger_account(
+        NewLedgerAccount(
+            title="Main Account",
+            type=LedgerAccountType.ASSET,
+            kind=LedgerAccountKind.BANK_ACCOUNT,
+            currency_iso_code="BRL",
+        ),
+    )
+    await ledger_accounts.soft_delete_ledger_account(created.id)
+    ledger_accounts.delete_error = LedgerAccountNotFoundOutputPortError()
+    use_case = LedgerAccountUseCase(
+        _UnitOfWorkFactoryStub(_UnitOfWorkStub(ledger_accounts)),
+    )
+
+    with pytest.raises(LedgerAccountNotFoundError):
+        await use_case.delete_ledger_account(created.id, hard_delete=True)

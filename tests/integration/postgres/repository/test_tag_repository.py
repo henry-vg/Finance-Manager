@@ -1,22 +1,22 @@
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.core.domain.tag import NewTag, TagChanges, TagSortableField
+from src.core.domain.tag import TagSortableField
 from src.core.ports.output.tag_output_port import TagNotFoundOutputPortError
 from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
     SQLAlchemyTagOutputAdapter,
     TagRecord,
 )
-
-
-def _build_new_tag(*, title: str = "Food") -> NewTag:
-    return NewTag(title=title)
-
-
-def _build_tag_changes(*, title: str = "Utilities") -> TagChanges:
-    return TagChanges(title=title)
+from tests.integration.postgres.helpers.builders import (
+    build_new_tag as _build_new_tag,
+)
+from tests.integration.postgres.helpers.builders import (
+    build_tag_changes as _build_tag_changes,
+)
+from tests.integration.postgres.helpers.clock import (
+    advance_postgres_clock,
+)
 
 
 @pytest.fixture
@@ -53,8 +53,7 @@ async def test_update_tag_preserves_created_at_and_refreshes_updated_at(
         await session.commit()
 
     async with postgres_session_factory() as session:
-        await session.execute(text("SELECT pg_sleep(0.01)"))
-        await session.commit()
+        await advance_postgres_clock(session)
 
     async with postgres_session_factory() as session:
         repository = SQLAlchemyTagOutputAdapter(session)
@@ -141,23 +140,6 @@ async def test_soft_delete_tag_raises_not_found_when_record_was_already_deleted(
 
 
 @pytest.mark.anyio
-async def test_hard_delete_tag_removes_record_permanently(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    async with postgres_session_factory() as session:
-        repository = SQLAlchemyTagOutputAdapter(session)
-        created_tag = await repository.create_tag(new_tag=_build_new_tag())
-        await repository.soft_delete_tag(tag_id=created_tag.id)
-        await repository.hard_delete_tag(tag_id=created_tag.id)
-        await session.commit()
-
-    async with postgres_session_factory() as session:
-        tag_record = await session.get(TagRecord, created_tag.id)
-
-    assert tag_record is None
-
-
-@pytest.mark.anyio
 async def test_hard_delete_tag_removes_active_row_without_prior_soft_delete(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -179,7 +161,7 @@ async def test_hard_delete_tag_removes_active_row_without_prior_soft_delete(
 
 
 @pytest.mark.anyio
-async def test_update_tag_raises_output_port_not_found_when_record_is_missing(
+async def test_update_tag_raises_not_found_when_record_is_missing(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:

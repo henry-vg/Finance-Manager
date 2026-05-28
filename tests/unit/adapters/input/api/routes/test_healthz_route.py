@@ -41,7 +41,7 @@ class _ReadyHealthzInputPortStub(HealthzInputPort):
 
 
 @pytest.mark.anyio
-async def test_healthz_readiness_returns_503_when_not_ok():
+async def test_get_healthz_readiness_returns_503_when_not_ok():
     app = FastAPI()
     app.include_router(create_router(_NotReadyHealthzInputPortStub()))
 
@@ -57,7 +57,7 @@ async def test_healthz_readiness_returns_503_when_not_ok():
 
 
 @pytest.mark.anyio
-async def test_healthz_liveness_returns_200_when_ok():
+async def test_get_healthz_liveness_returns_ok():
     app = FastAPI()
     app.include_router(create_router(_ReadyHealthzInputPortStub()))
 
@@ -70,7 +70,7 @@ async def test_healthz_liveness_returns_200_when_ok():
 
 
 @pytest.mark.anyio
-async def test_healthz_readiness_returns_200_when_ok():
+async def test_get_healthz_readiness_returns_ok():
     app = FastAPI()
     app.include_router(create_router(_ReadyHealthzInputPortStub()))
 

@@ -3,6 +3,20 @@ pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra"
 
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/**/__init__.py"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 88

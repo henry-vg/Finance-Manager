@@ -227,3 +227,60 @@ async def test_list_tags_returns_active_tags() -> None:
     )
 
     assert [tag.title for tag in page.items] == ["Travel"]
+
+
+@pytest.mark.anyio
+async def test_get_tag_returns_existing_tag() -> None:
+    tags = _TagOutputPortStub()
+    created = await tags.create_tag(NewTag(title="Food"))
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(tags)))
+
+    result = await use_case.get_tag(created.id)
+
+    assert result == created
+
+
+@pytest.mark.anyio
+async def test_update_tag_replaces_fields_and_commits() -> None:
+    tags = _TagOutputPortStub()
+    created = await tags.create_tag(NewTag(title="Food"))
+    unit_of_work = _UnitOfWorkStub(tags)
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    result = await use_case.update_tag(created.id, UpdateTagData(title="Utilities"))
+
+    assert result.title == "Utilities"
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_delete_tag_hard_deletes_when_requested() -> None:
+    tags = _TagOutputPortStub()
+    created = await tags.create_tag(NewTag(title="Food"))
+    await tags.soft_delete_tag(created.id)
+    unit_of_work = _UnitOfWorkStub(tags)
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    await use_case.delete_tag(created.id, hard_delete=True)
+
+    assert created.id not in tags.tags
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_delete_tag_translates_output_port_not_found_on_hard_delete() -> None:
+    tags = _TagOutputPortStub()
+    created = await tags.create_tag(NewTag(title="Food"))
+    tags.delete_error = TagNotFoundOutputPortError()
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(tags)))
+
+    with pytest.raises(TagNotFoundError):
+        await use_case.delete_tag(created.id, hard_delete=True)
+
+
+@pytest.mark.anyio
+async def test_delete_tag_raises_when_tag_does_not_exist() -> None:
+    use_case = TagUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(_TagOutputPortStub())))
+
+    with pytest.raises(TagNotFoundError):
+        await use_case.delete_tag(999)
