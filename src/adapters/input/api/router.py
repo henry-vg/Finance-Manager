@@ -76,6 +76,8 @@ def create_api_router(
     api_router.include_router(
         router=transaction_route.create_router(
             transaction_input_port=transaction_input_port,
+            pagination_default_limit=pagination_default_limit,
+            pagination_max_limit=pagination_max_limit,
         ),
     )
 

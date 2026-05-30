@@ -72,3 +72,13 @@ class TransactionResponse(ApiSchemaBase):
     description: str | None
     status: TransactionStatusSchema
     entries: tuple[TransactionEntryWithTagsResponse, ...] = ()
+
+
+class TransactionSummaryResponse(ApiSchemaBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    effective_at: datetime
+    title: str
+    description: str | None
+    status: TransactionStatusSchema

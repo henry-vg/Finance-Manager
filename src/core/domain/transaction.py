@@ -10,6 +10,15 @@ class TransactionStatus(IntEnum):
     VOIDED = 3
 
 
+class TransactionSortableField(IntEnum):
+    ID = 1
+    CREATED_AT = 2
+    UPDATED_AT = 3
+    EFFECTIVE_AT = 4
+    TITLE = 5
+    STATUS = 6
+
+
 _ALLOWED_TRANSACTION_STATUS_TRANSITIONS = {
     TransactionStatus.PENDING: (
         TransactionStatus.POSTED,

@@ -2,9 +2,11 @@ from typing import Protocol
 
 from src.core.domain.transaction import (
     NewTransaction,
+    Transaction,
     TransactionChanges,
     TransactionWithEntries,
 )
+from src.core.shared import ListQuery, Page
 
 
 class TransactionNotFoundOutputPortError(Exception):
@@ -12,6 +14,11 @@ class TransactionNotFoundOutputPortError(Exception):
 
 
 class TransactionOutputPort(Protocol):  # pragma: no cover
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]: ...
+
     async def get_transaction_by_id(
         self,
         transaction_id: int,

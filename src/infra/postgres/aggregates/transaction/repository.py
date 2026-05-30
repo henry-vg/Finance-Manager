@@ -1,7 +1,7 @@
 from collections import defaultdict
-from typing import cast
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.domain.transaction import (
@@ -13,6 +13,7 @@ from src.core.domain.transaction import (
     Transaction,
     TransactionChanges,
     TransactionMustBePendingError,
+    TransactionSortableField,
     TransactionStatus,
     TransactionStatusTransitionNotAllowedError,
     TransactionWithEntries,
@@ -22,8 +23,20 @@ from src.core.ports.output.transaction_output_port import (
     TransactionNotFoundOutputPortError,
     TransactionOutputPort,
 )
+from src.core.shared import ListQuery, Page, SortDirection
 
+from ...listing import build_order_clauses
 from .models import EntryRecord, EntryTagRecord, TransactionRecord
+
+
+_TRANSACTION_LIST_SORT_COLUMNS: dict[TransactionSortableField, Any] = {
+    TransactionSortableField.ID: TransactionRecord.id,
+    TransactionSortableField.CREATED_AT: TransactionRecord.created_at,
+    TransactionSortableField.UPDATED_AT: TransactionRecord.updated_at,
+    TransactionSortableField.EFFECTIVE_AT: TransactionRecord.effective_at,
+    TransactionSortableField.TITLE: TransactionRecord.title,
+    TransactionSortableField.STATUS: TransactionRecord.status,
+}
 
 
 def _to_domain_transaction(
@@ -96,6 +109,49 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
         session: AsyncSession,
     ) -> None:
         self._session = session
+
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]:
+        statement = (
+            select(TransactionRecord)
+            .where(TransactionRecord.is_deleted.is_(False))
+            .order_by(
+                *build_order_clauses(
+                    sort_terms=list_query.sort,
+                    sort_field_enum=TransactionSortableField,
+                    sort_columns=_TRANSACTION_LIST_SORT_COLUMNS,
+                    tie_break_field=TransactionSortableField.ID,
+                    tie_break_direction=SortDirection.DESC,
+                ),
+            )
+            .offset(list_query.offset)
+            .limit(list_query.limit)
+        )
+        total_statement = (
+            select(func.count())
+            .select_from(TransactionRecord)
+            .where(TransactionRecord.is_deleted.is_(False))
+        )
+
+        transaction_records = cast(
+            list[TransactionRecord],
+            list((await self._session.scalars(statement)).all()),
+        )
+        total = cast(int, await self._session.scalar(total_statement))
+
+        return Page[Transaction](
+            items=[
+                _to_domain_transaction(
+                    transaction_record=transaction_record,
+                )
+                for transaction_record in transaction_records
+            ],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=total,
+        )
 
     async def create_transaction(
         self,

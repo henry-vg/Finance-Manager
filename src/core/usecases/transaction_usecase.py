@@ -9,6 +9,7 @@ from src.core.domain.transaction import (
     CreateTransactionData,
     NewEntry,
     NewTransaction,
+    Transaction,
     TransactionChanges,
     TransactionEntriesMustBalanceError,
     TransactionEntryCurrencyNotFoundError,
@@ -35,6 +36,7 @@ from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
     UnitOfWorkOutputPortFactory,
 )
+from src.core.shared import ListQuery, Page
 
 
 class TransactionUseCase(TransactionInputPort):
@@ -135,6 +137,15 @@ class TransactionUseCase(TransactionInputPort):
 
             if currency is None:
                 raise TransactionEntryCurrencyNotFoundError()
+
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]:
+        async with self._unit_of_work_output_port_factory() as unit_of_work:
+            return await unit_of_work.transactions.list_transactions(
+                list_query=list_query,
+            )
 
     async def get_transaction(
         self,

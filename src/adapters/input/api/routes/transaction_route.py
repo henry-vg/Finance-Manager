@@ -1,8 +1,16 @@
-from fastapi import APIRouter, Query, status
+from enum import StrEnum
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, status
 
 from src.adapters.input.api.exception_translation import (
     HTTPExceptionTranslation,
     translate_exceptions_to_http,
+)
+from src.adapters.input.api.pagination import (
+    EndpointSortField,
+    ListQuerySortConfig,
+    create_list_query_dependency,
 )
 from src.core.domain.transaction import (
     CreateTransactionData,
@@ -22,6 +30,7 @@ from src.core.domain.transaction import (
     TransactionMustBePendingError,
     TransactionMustHaveAtLeastTwoEntriesError,
     TransactionNotFoundError,
+    TransactionSortableField,
     TransactionStatus,
     TransactionStatusTransitionNotAllowedError,
     TransactionTagNotFoundError,
@@ -29,7 +38,9 @@ from src.core.domain.transaction import (
     UpdateTransactionData,
 )
 from src.core.ports.input.transaction_input_port import TransactionInputPort
+from src.core.shared import ListQuery, Page
 
+from ..schemas import PageResponse
 from ..schemas.transaction_schema import (
     CreateTransactionRequest,
     TransactionEntryRequest,
@@ -37,9 +48,19 @@ from ..schemas.transaction_schema import (
     TransactionEntryTagResponse,
     TransactionEntryWithTagsResponse,
     TransactionResponse,
+    TransactionSummaryResponse,
     TransactionStatusSchema,
     UpdateTransactionRequest,
 )
+
+
+class TransactionListSortField(StrEnum):
+    ID = "id"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+    EFFECTIVE_AT = "effective_at"
+    TITLE = "title"
+    STATUS = "status"
 
 
 def _to_new_entry_tags(
@@ -126,8 +147,40 @@ def _to_transaction_response(
     )
 
 
+def _to_transaction_summary_response(
+    transaction: Transaction,
+) -> TransactionSummaryResponse:
+    return TransactionSummaryResponse(
+        id=transaction.id,
+        created_at=transaction.created_at,
+        updated_at=transaction.updated_at,
+        effective_at=transaction.effective_at,
+        title=transaction.title,
+        description=transaction.description,
+        status=_to_transaction_status_schema(transaction.status),
+    )
+
+
+def _to_transaction_page_response(
+    page: Page[Transaction],
+) -> PageResponse[TransactionSummaryResponse]:
+    return PageResponse[TransactionSummaryResponse](
+        items=[
+            _to_transaction_summary_response(
+                transaction=transaction,
+            )
+            for transaction in page.items
+        ],
+        offset=page.offset,
+        limit=page.limit,
+        total=page.total,
+    )
+
+
 def create_router(
     transaction_input_port: TransactionInputPort,
+    pagination_default_limit: int,
+    pagination_max_limit: int,
 ) -> APIRouter:
     transaction_not_found_translation = HTTPExceptionTranslation(
         exception_type=TransactionNotFoundError,
@@ -206,7 +259,54 @@ def create_router(
         transaction_entry_requires_credit_card_ledger_account_translation,
         transaction_entry_statement_due_date_after_closing_date_translation,
     )
+    list_sort_config = ListQuerySortConfig(
+        fields=tuple(
+            EndpointSortField(
+                query_name=sort_field.value,
+                item_field_name=TransactionSortableField[sort_field.name].name.lower(),
+            )
+            for sort_field in TransactionListSortField
+        ),
+        default_sort=(TransactionListSortField.CREATED_AT.value,),
+    )
     router = APIRouter(prefix="/transaction", tags=["Transaction"])
+
+    @router.get(
+        path="/list",
+        response_model=PageResponse[TransactionSummaryResponse],
+        status_code=status.HTTP_200_OK,
+        description=(
+            "Endpoint used to list persisted active transactions with offset/limit "
+            "pagination and optional sort expressions such as `effective_at` or "
+            "`-created_at`."
+        ),
+        responses={
+            200: {
+                "description": (
+                    "The paginated transaction collection was returned successfully."
+                ),
+            },
+            400: {
+                "description": "The pagination query parameters failed validation.",
+            },
+        },
+        summary="List Transactions",
+    )
+    async def list_transactions(
+        list_query: Annotated[
+            ListQuery,
+            Depends(
+                create_list_query_dependency(
+                    default_limit=pagination_default_limit,
+                    max_limit=pagination_max_limit,
+                    sort_config=list_sort_config,
+                ),
+            ),
+        ],
+    ) -> PageResponse[TransactionSummaryResponse]:
+        page = await transaction_input_port.list_transactions(list_query=list_query)
+
+        return _to_transaction_page_response(page)
 
     @router.get(
         path="",
@@ -250,7 +350,10 @@ def create_router(
                 "description": "The transaction was created successfully.",
             },
             422: {
-                "description": "The request body failed validation or violated transaction business rules.",
+                "description": (
+                    "- The request body failed validation.\n"
+                    "- The transaction violated one or more business rules."
+                ),
             },
         },
         summary="Create Transaction",
@@ -287,7 +390,10 @@ def create_router(
                 "description": "The current transaction state does not allow the requested update.",
             },
             422: {
-                "description": "The request payload or query parameters failed validation, or violated transaction business rules.",
+                "description": (
+                    "- The request payload or query parameters failed validation.\n"
+                    "- The transaction violated one or more business rules."
+                ),
             },
         },
         summary="Update Transaction",
