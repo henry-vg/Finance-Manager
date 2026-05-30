@@ -202,7 +202,8 @@ def create_router(
             },
             422: {
                 "description": (
-                    "The request payload or query parameters failed validation."
+                    "- The request payload failed validation.\n"
+                    "- The query parameters failed validation."
                 ),
             },
         },
@@ -232,7 +233,10 @@ def create_router(
         description="Endpoint used to delete an existing tag by its id.",
         responses={
             204: {
-                "description": "The tag was deleted successfully.",
+                "description": (
+                    "- The tag was soft-deleted when `hard_delete=false`.\n"
+                    "- The tag was permanently deleted when `hard_delete=true`."
+                ),
             },
             404: {
                 "description": "No tag exists for the provided id.",

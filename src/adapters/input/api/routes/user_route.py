@@ -247,7 +247,8 @@ def create_router(
             },
             422: {
                 "description": (
-                    "The request payload or query parameters failed validation."
+                    "- The request payload failed validation.\n"
+                    "- The query parameters failed validation."
                 ),
             },
         },
@@ -291,8 +292,8 @@ def create_router(
         responses={
             204: {
                 "description": (
-                    "The user was deleted successfully, either logically or "
-                    "physically depending on the hard_delete query parameter."
+                    "- The user was soft-deleted when `hard_delete=false`.\n"
+                    "- The user was permanently deleted when `hard_delete=true`."
                 ),
             },
             404: {

@@ -28,7 +28,6 @@ from src.core.shared import ListQuery, Page, SortDirection
 from ...listing import build_order_clauses
 from .models import EntryRecord, EntryTagRecord, TransactionRecord
 
-
 _TRANSACTION_LIST_SORT_COLUMNS: dict[TransactionSortableField, Any] = {
     TransactionSortableField.ID: TransactionRecord.id,
     TransactionSortableField.CREATED_AT: TransactionRecord.created_at,
