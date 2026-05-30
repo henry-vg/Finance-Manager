@@ -6,12 +6,14 @@ from src.adapters.input.api.routes import (
     healthz_route,
     ledger_account_route,
     tag_route,
+    transaction_route,
     user_route,
 )
 from src.core.ports.input.currency_input_port import CurrencyInputPort
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
+from src.core.ports.input.transaction_input_port import TransactionInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 
 
@@ -26,6 +28,7 @@ def create_api_router(
     currency_input_port: CurrencyInputPort,
     ledger_account_input_port: LedgerAccountInputPort,
     tag_input_port: TagInputPort,
+    transaction_input_port: TransactionInputPort,
     user_input_port: UserInputPort,
 ) -> APIRouter:
     api_router = APIRouter()
@@ -67,6 +70,12 @@ def create_api_router(
             tag_input_port=tag_input_port,
             pagination_default_limit=pagination_default_limit,
             pagination_max_limit=pagination_max_limit,
+        ),
+    )
+
+    api_router.include_router(
+        router=transaction_route.create_router(
+            transaction_input_port=transaction_input_port,
         ),
     )
 

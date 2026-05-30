@@ -22,6 +22,7 @@ def create_app() -> FastAPI:
         currency_input_port=container.currency_input_port,
         ledger_account_input_port=container.ledger_account_input_port,
         tag_input_port=container.tag_input_port,
+        transaction_input_port=container.transaction_input_port,
         user_input_port=container.user_input_port,
         lifespan=lifespan,
     )

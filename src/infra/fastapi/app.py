@@ -11,6 +11,7 @@ from src.core.ports.input.currency_input_port import CurrencyInputPort
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
+from src.core.ports.input.transaction_input_port import TransactionInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.infra.fastapi.tags import openapi_tags
 from src.infra.logging import setup_logging
@@ -31,6 +32,7 @@ def create_http_app(
     currency_input_port: CurrencyInputPort,
     ledger_account_input_port: LedgerAccountInputPort,
     tag_input_port: TagInputPort,
+    transaction_input_port: TransactionInputPort,
     user_input_port: UserInputPort,
     lifespan=_default_lifespan,
 ) -> FastAPI:
@@ -69,6 +71,7 @@ def create_http_app(
         currency_input_port=currency_input_port,
         ledger_account_input_port=ledger_account_input_port,
         tag_input_port=tag_input_port,
+        transaction_input_port=transaction_input_port,
         user_input_port=user_input_port,
     )
 

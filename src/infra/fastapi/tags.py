@@ -34,6 +34,14 @@ openapi_tags = [
         ),
     },
     {
+        "name": "Transaction",
+        "description": (
+            "Transaction write endpoints for retrieving, creating, updating, "
+            "posting, and voiding accounting events together with their "
+            "subordinate entries."
+        ),
+    },
+    {
         "name": "User",
         "description": (
             "User management endpoints for creating, retrieving, updating, "
