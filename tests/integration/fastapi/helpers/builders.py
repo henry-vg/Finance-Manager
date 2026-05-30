@@ -94,8 +94,7 @@ def build_ledger_account_create_payload(**overrides: Any) -> dict[str, Any]:
     return {
         "title": "Main Account",
         "type": "asset",
-        "kind": "bank_account",
-        "currency_iso_code": "BRL",
+        "instrument_kind": "bank_account",
     } | overrides
 
 
@@ -103,8 +102,7 @@ def build_ledger_account_update_payload(**overrides: Any) -> dict[str, Any]:
     return {
         "title": "Credit Card",
         "type": "liability",
-        "kind": "credit_card",
-        "currency_iso_code": "USD",
+        "instrument_kind": "credit_card",
     } | overrides
 
 
@@ -115,8 +113,8 @@ def build_ledger_account_response(**overrides: Any) -> dict[str, Any]:
         "updated_at": "2026-05-01T00:00:00.000Z",
         "title": "Main Account",
         "type": "asset",
-        "kind": "bank_account",
-        "currency_iso_code": "BRL",
+        "instrument_kind": "bank_account",
+        "balances": [],
     } | overrides
 
 
@@ -127,8 +125,8 @@ def build_updated_ledger_account_response(**overrides: Any) -> dict[str, Any]:
         "updated_at": "2026-05-02T00:00:00.000Z",
         "title": "Credit Card",
         "type": "liability",
-        "kind": "credit_card",
-        "currency_iso_code": "USD",
+        "instrument_kind": "credit_card",
+        "balances": [],
     } | overrides
 
 

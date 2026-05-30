@@ -1,5 +1,3 @@
-from sqlalchemy import String
-
 from src.infra.postgres.aggregates.transaction.models.transactions import (
     TransactionRecord,
 )
@@ -22,8 +20,6 @@ def test_transaction_record_table_matches_expected_shape() -> None:
         "title",
         "description",
         "status",
-        "currency",
     }
     assert list(transactions_table.primary_key.columns.keys()) == ["id"]
     assert transactions_table.c.status.type.name == "transaction_status_enum"
-    assert isinstance(transactions_table.c.currency.type, String)

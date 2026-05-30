@@ -58,7 +58,6 @@ def _build_transaction_record(**overrides: Any) -> SimpleNamespace:
         "title": "Airline tickets",
         "description": "Family vacation purchase",
         "status": TransactionStatus.PENDING,
-        "currency": "BRL",
         "is_deleted": False,
     }
     values.update(overrides)
@@ -105,17 +104,15 @@ async def test_get_transaction_by_id_returns_transaction_with_empty_entries() ->
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_raises_not_found_when_record_is_missing() -> (
-    None
-):
+async def test_post_transaction_raises_not_found_when_record_is_missing() -> None:
     repository = SQLAlchemyTransactionRepository(cast(Any, _FakeSession()))
 
     with pytest.raises(TransactionNotFoundOutputPortError):
-        await repository.mark_transaction_effective(1)
+        await repository.post_transaction(1)
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_raises_not_found_when_reload_returns_none(
+async def test_post_transaction_raises_not_found_when_reload_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = _FakeSession(scalar_results=(_build_transaction_record(),))
@@ -128,6 +125,6 @@ async def test_mark_transaction_effective_raises_not_found_when_reload_returns_n
     monkeypatch.setattr(repository, "get_transaction_by_id", _missing_transaction)
 
     with pytest.raises(TransactionNotFoundOutputPortError):
-        await repository.mark_transaction_effective(1)
+        await repository.post_transaction(1)
 
     assert session.flush_calls == 1

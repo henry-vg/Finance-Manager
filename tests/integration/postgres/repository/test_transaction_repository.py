@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.domain.ledger_account import (
-    LedgerAccountKind,
+    LedgerAccountInstrumentKind,
     LedgerAccountType,
 )
 from src.core.domain.transaction import (
@@ -17,12 +17,14 @@ from src.core.domain.transaction import (
 from src.infra.postgres import (
     EntryRecord,
     EntryTagRecord,
+    SQLAlchemyCurrencyOutputAdapter,
     SQLAlchemyLedgerAccountOutputAdapter,
     SQLAlchemyTagOutputAdapter,
     TransactionRecord,
 )
 from src.infra.postgres.aggregates.transaction import SQLAlchemyTransactionRepository
 from tests.integration.postgres.helpers.builders import (
+    build_new_currency,
     build_new_ledger_account,
     build_new_tag,
     build_new_transaction,
@@ -35,17 +37,33 @@ async def _create_ledger_account(
     *,
     title: str,
     type: LedgerAccountType,
-    kind: LedgerAccountKind,
+    instrument_kind: LedgerAccountInstrumentKind | None,
 ) -> int:
     adapter = SQLAlchemyLedgerAccountOutputAdapter(session)
     ledger_account = await adapter.create_ledger_account(
         build_new_ledger_account(
             title=title,
             type=type,
-            kind=kind,
+            instrument_kind=instrument_kind,
         ),
     )
     return ledger_account.id
+
+
+async def _create_currency(
+    session: AsyncSession,
+) -> int:
+    adapter = SQLAlchemyCurrencyOutputAdapter(session)
+    currency = await adapter.create_currency(
+        build_new_currency(
+            iso_code="BRL",
+            iso_numeric="986",
+            name="Brazilian Real",
+            symbol="R$",
+            decimal_places=2,
+        ),
+    )
+    return currency.id
 
 
 async def _create_tag(
@@ -64,17 +82,18 @@ async def _create_transaction_dependencies(
     food_tag_title: str = "Food",
     travel_tag_title: str = "Travel",
 ) -> tuple[int, int, int, int]:
+    await _create_currency(session)
     expense_ledger_account_id = await _create_ledger_account(
         session,
         title="Travel Expense",
         type=LedgerAccountType.EXPENSE,
-        kind=LedgerAccountKind.OTHER,
+        instrument_kind=None,
     )
     credit_card_ledger_account_id = await _create_ledger_account(
         session,
         title="Visa Platinum",
         type=LedgerAccountType.LIABILITY,
-        kind=LedgerAccountKind.CREDIT_CARD,
+        instrument_kind=LedgerAccountInstrumentKind.CREDIT_CARD,
     )
     food_tag_id = await _create_tag(session, title=food_tag_title)
     travel_tag_id = await _create_tag(session, title=travel_tag_title)
@@ -133,6 +152,7 @@ async def test_create_transaction_persists_transaction_entries_and_entry_tags(
     assert [
         entry_tag.tag_id for entry_tag in created_transaction.entries[0].entry_tags
     ] == [food_tag_id, travel_tag_id]
+    assert {entry_record.currency_id for entry_record in entry_records} == {1}
     assert created_transaction.entries[1].entry.statement_closing_date == date(
         2026,
         5,
@@ -180,7 +200,7 @@ async def test_create_transaction_persists_transaction_entries_and_entry_tags(
 
 
 @pytest.mark.anyio
-async def test_create_transaction_persists_explicit_effective_status(
+async def test_create_transaction_persists_explicit_posted_status(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -198,7 +218,7 @@ async def test_create_transaction_persists_explicit_effective_status(
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=food_tag_id,
                 travel_tag_id=travel_tag_id,
-                status=TransactionStatus.EFFECTIVE,
+                status=TransactionStatus.POSTED,
             ),
         )
         await session.commit()
@@ -208,13 +228,13 @@ async def test_create_transaction_persists_explicit_effective_status(
             created_transaction.transaction.id,
         )
 
-    assert created_transaction.transaction.status == TransactionStatus.EFFECTIVE
+    assert created_transaction.transaction.status == TransactionStatus.POSTED
     assert transaction_record is not None
-    assert transaction_record.status == TransactionStatus.EFFECTIVE
+    assert transaction_record.status == TransactionStatus.POSTED
 
 
 @pytest.mark.anyio
-async def test_create_transaction_persists_explicit_canceled_status(
+async def test_create_transaction_persists_explicit_voided_status(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -232,7 +252,7 @@ async def test_create_transaction_persists_explicit_canceled_status(
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=food_tag_id,
                 travel_tag_id=travel_tag_id,
-                status=TransactionStatus.CANCELED,
+                status=TransactionStatus.VOIDED,
             ),
         )
         await session.commit()
@@ -242,9 +262,9 @@ async def test_create_transaction_persists_explicit_canceled_status(
             created_transaction.transaction.id,
         )
 
-    assert created_transaction.transaction.status == TransactionStatus.CANCELED
+    assert created_transaction.transaction.status == TransactionStatus.VOIDED
     assert transaction_record is not None
-    assert transaction_record.status == TransactionStatus.CANCELED
+    assert transaction_record.status == TransactionStatus.VOIDED
 
 
 @pytest.mark.anyio
@@ -402,7 +422,7 @@ async def test_update_transaction_rejects_non_pending_transaction(
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,
                 travel_tag_id=travel_tag_id,
-                status=TransactionStatus.EFFECTIVE,
+                status=TransactionStatus.POSTED,
             ),
         )
         await session.commit()
@@ -422,7 +442,7 @@ async def test_update_transaction_rejects_non_pending_transaction(
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_updates_status_without_replacing_entries(
+async def test_post_transaction_updates_status_without_replacing_entries(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -464,7 +484,7 @@ async def test_mark_transaction_effective_updates_status_without_replacing_entri
         ]
         repository = SQLAlchemyTransactionRepository(session)
 
-        transitioned_transaction = await repository.mark_transaction_effective(
+        transitioned_transaction = await repository.post_transaction(
             created_transaction.transaction.id,
         )
         await session.commit()
@@ -486,16 +506,16 @@ async def test_mark_transaction_effective_updates_status_without_replacing_entri
             created_transaction.transaction.id,
         )
 
-    assert transitioned_transaction.transaction.status == TransactionStatus.EFFECTIVE
+    assert transitioned_transaction.transaction.status == TransactionStatus.POSTED
     assert transaction_record is not None
-    assert transaction_record.status == TransactionStatus.EFFECTIVE
+    assert transaction_record.status == TransactionStatus.POSTED
     assert [
         entry_record.id for entry_record in transitioned_entry_records
     ] == original_entry_ids
 
 
 @pytest.mark.anyio
-async def test_cancel_transaction_allows_effective_status_without_replacing_entries(
+async def test_void_transaction_rejects_posted_status(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:
@@ -515,81 +535,7 @@ async def test_cancel_transaction_allows_effective_status_without_replacing_entr
                 credit_card_ledger_account_id=credit_card_ledger_account_id,
                 food_tag_id=groceries_tag_id,
                 travel_tag_id=travel_tag_id,
-                status=TransactionStatus.EFFECTIVE,
-            ),
-        )
-        await session.commit()
-
-    async with postgres_session_factory() as session:
-        original_entry_records = list(
-            (
-                await session.scalars(
-                    select(EntryRecord)
-                    .where(
-                        EntryRecord.transaction_id
-                        == created_transaction.transaction.id,
-                    )
-                    .order_by(EntryRecord.id.asc()),
-                )
-            ).all(),
-        )
-        original_entry_ids = [
-            entry_record.id for entry_record in original_entry_records
-        ]
-        repository = SQLAlchemyTransactionRepository(session)
-
-        transitioned_transaction = await repository.cancel_transaction(
-            created_transaction.transaction.id,
-        )
-        await session.commit()
-
-        transitioned_entry_records = list(
-            (
-                await session.scalars(
-                    select(EntryRecord)
-                    .where(
-                        EntryRecord.transaction_id
-                        == created_transaction.transaction.id,
-                    )
-                    .order_by(EntryRecord.id.asc()),
-                )
-            ).all(),
-        )
-        transaction_record = await session.get(
-            TransactionRecord,
-            created_transaction.transaction.id,
-        )
-
-    assert transitioned_transaction.transaction.status == TransactionStatus.CANCELED
-    assert transaction_record is not None
-    assert transaction_record.status == TransactionStatus.CANCELED
-    assert [
-        entry_record.id for entry_record in transitioned_entry_records
-    ] == original_entry_ids
-
-
-@pytest.mark.anyio
-async def test_cancel_transaction_rejects_terminal_canceled_status(
-    postgres_session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    async with postgres_session_factory() as session:
-        (
-            expense_ledger_account_id,
-            credit_card_ledger_account_id,
-            groceries_tag_id,
-            travel_tag_id,
-        ) = await _create_transaction_dependencies(
-            session,
-            food_tag_title="Groceries",
-        )
-        repository = SQLAlchemyTransactionRepository(session)
-        created_transaction = await repository.create_transaction(
-            build_new_transaction(
-                expense_ledger_account_id=expense_ledger_account_id,
-                credit_card_ledger_account_id=credit_card_ledger_account_id,
-                food_tag_id=groceries_tag_id,
-                travel_tag_id=travel_tag_id,
-                status=TransactionStatus.CANCELED,
+                status=TransactionStatus.POSTED,
             ),
         )
         await session.commit()
@@ -598,4 +544,37 @@ async def test_cancel_transaction_rejects_terminal_canceled_status(
         repository = SQLAlchemyTransactionRepository(session)
 
         with pytest.raises(TransactionStatusTransitionNotAllowedError):
-            await repository.cancel_transaction(created_transaction.transaction.id)
+            await repository.void_transaction(created_transaction.transaction.id)
+
+
+@pytest.mark.anyio
+async def test_void_transaction_rejects_terminal_voided_status(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            groceries_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(
+            session,
+            food_tag_title="Groceries",
+        )
+        repository = SQLAlchemyTransactionRepository(session)
+        created_transaction = await repository.create_transaction(
+            build_new_transaction(
+                expense_ledger_account_id=expense_ledger_account_id,
+                credit_card_ledger_account_id=credit_card_ledger_account_id,
+                food_tag_id=groceries_tag_id,
+                travel_tag_id=travel_tag_id,
+                status=TransactionStatus.VOIDED,
+            ),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTransactionRepository(session)
+
+        with pytest.raises(TransactionStatusTransitionNotAllowedError):
+            await repository.void_transaction(created_transaction.transaction.id)

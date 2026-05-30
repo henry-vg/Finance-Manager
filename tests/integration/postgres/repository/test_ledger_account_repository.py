@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.domain.ledger_account import (
-    LedgerAccountKind,
+    LedgerAccountInstrumentKind,
     LedgerAccountSortableField,
     LedgerAccountType,
 )
@@ -51,8 +51,10 @@ async def test_create_ledger_account_generates_id_and_timestamps_with_active_def
     assert created_ledger_account.updated_at == created_ledger_account.created_at
     assert ledger_account_record is not None
     assert ledger_account_record.type == LedgerAccountType.ASSET
-    assert ledger_account_record.kind == LedgerAccountKind.BANK_ACCOUNT
-    assert ledger_account_record.currency_iso_code == "BRL"
+    assert (
+        ledger_account_record.instrument_kind
+        == LedgerAccountInstrumentKind.BANK_ACCOUNT
+    )
     assert ledger_account_record.is_deleted is False
     assert ledger_account_record.deleted_at is None
 
@@ -96,15 +98,14 @@ async def test_list_ledger_accounts_returns_paginated_active_ledger_accounts_wit
         soft_deleted_ledger_account = await repository.create_ledger_account(
             new_ledger_account=_build_new_ledger_account(
                 title="Wallet",
-                kind=LedgerAccountKind.WALLET,
+                instrument_kind=LedgerAccountInstrumentKind.WALLET,
             ),
         )
         await repository.create_ledger_account(
             new_ledger_account=_build_new_ledger_account(
                 title="Credit Card",
                 type=LedgerAccountType.LIABILITY,
-                kind=LedgerAccountKind.CREDIT_CARD,
-                currency_iso_code="USD",
+                instrument_kind=LedgerAccountInstrumentKind.CREDIT_CARD,
             ),
         )
         await repository.soft_delete_ledger_account(

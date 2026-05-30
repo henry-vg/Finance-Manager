@@ -1,14 +1,15 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 
-from src.core.domain.currency import Currency
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
     LedgerAccount,
+    LedgerAccountBalance,
     LedgerAccountChanges,
-    LedgerAccountCurrencyISOCodeNotSupportedError,
-    LedgerAccountKind,
+    LedgerAccountInstrumentKind,
+    LedgerAccountInstrumentKindNotAllowedError,
     LedgerAccountNotFoundError,
     LedgerAccountType,
     NewLedgerAccount,
@@ -34,12 +35,24 @@ def _build_timestamp(day: int) -> datetime:
     return datetime(2026, 5, day, tzinfo=UTC)
 
 
+def _build_balance(
+    *,
+    currency_id: int,
+    current_balance: str,
+    future_balance: str,
+) -> LedgerAccountBalance:
+    return LedgerAccountBalance(
+        currency_id=currency_id,
+        current_balance=Decimal(current_balance),
+        future_balance=Decimal(future_balance),
+    )
+
+
 def _build_create_data() -> CreateLedgerAccountData:
     return CreateLedgerAccountData(
         title="Main Account",
         type=LedgerAccountType.ASSET,
-        kind=LedgerAccountKind.BANK_ACCOUNT,
-        currency_iso_code="BRL",
+        instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
     )
 
 
@@ -47,23 +60,24 @@ def _build_update_data() -> UpdateLedgerAccountData:
     return UpdateLedgerAccountData(
         title="Credit Card",
         type=LedgerAccountType.LIABILITY,
-        kind=LedgerAccountKind.CREDIT_CARD,
-        currency_iso_code="USD",
+        instrument_kind=LedgerAccountInstrumentKind.CREDIT_CARD,
     )
 
 
-def _build_currency(
+def _build_existing_ledger_account(
     *,
-    currency_id: int,
-    iso_code: str,
-) -> Currency:
-    return Currency(
-        id=currency_id,
-        iso_code=iso_code,
-        iso_numeric="000",
-        name=f"{iso_code} currency",
-        symbol="$",
-        decimal_places=2,
+    ledger_account_id: int,
+    title: str,
+    type: LedgerAccountType,
+    instrument_kind: LedgerAccountInstrumentKind | None,
+    balances: tuple[LedgerAccountBalance, ...] = (),
+) -> LedgerAccount:
+    return LedgerAccount(
+        id=ledger_account_id,
+        title=title,
+        type=type,
+        instrument_kind=instrument_kind,
+        balances=balances,
         created_at=_build_timestamp(1),
         updated_at=_build_timestamp(1),
     )
@@ -125,14 +139,11 @@ class _LedgerAccountOutputPortStub(LedgerAccountOutputPort):
             raise self.create_error
 
         self.created_ledger_accounts.append(new_ledger_account)
-        ledger_account = LedgerAccount(
-            id=self.next_id,
+        ledger_account = _build_existing_ledger_account(
+            ledger_account_id=self.next_id,
             title=new_ledger_account.title,
             type=new_ledger_account.type,
-            kind=new_ledger_account.kind,
-            currency_iso_code=new_ledger_account.currency_iso_code,
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(1),
+            instrument_kind=new_ledger_account.instrument_kind,
         )
         self.ledger_accounts[ledger_account.id] = ledger_account
         self.next_id += 1
@@ -151,8 +162,8 @@ class _LedgerAccountOutputPortStub(LedgerAccountOutputPort):
             id=current.id,
             title=changes.title,
             type=changes.type,
-            kind=changes.kind,
-            currency_iso_code=changes.currency_iso_code,
+            instrument_kind=changes.instrument_kind,
+            balances=current.balances,
             created_at=current.created_at,
             updated_at=_build_timestamp(2),
         )
@@ -180,32 +191,14 @@ class _LedgerAccountOutputPortStub(LedgerAccountOutputPort):
         self.ledger_accounts.pop(ledger_account_id, None)
 
 
-class _CurrencyOutputPortStub(CurrencyOutputPort):
-    def __init__(self) -> None:
-        self.currencies_by_iso_code = {
-            "BRL": _build_currency(currency_id=1, iso_code="BRL"),
-            "USD": _build_currency(currency_id=2, iso_code="USD"),
-        }
-        self.queried_iso_codes: list[str] = []
-
-    async def get_currency_by_iso_code(self, iso_code: str) -> Currency | None:
-        self.queried_iso_codes.append(iso_code)
-        return self.currencies_by_iso_code.get(iso_code)
-
-
 class _UnitOfWorkStub(UnitOfWorkOutputPort):
-    def __init__(
-        self,
-        ledger_accounts: _LedgerAccountOutputPortStub,
-        currencies: _CurrencyOutputPortStub | None = None,
-    ) -> None:
+    def __init__(self, ledger_accounts: _LedgerAccountOutputPortStub) -> None:
         self._ledger_accounts = ledger_accounts
-        self._currencies = currencies or _CurrencyOutputPortStub()
         self.committed = False
 
     @property
     def currencies(self) -> CurrencyOutputPort:
-        return self._currencies
+        raise RuntimeError("currencies output port is unused in ledger account tests")
 
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort:
@@ -256,25 +249,48 @@ async def test_create_ledger_account_returns_created_account_and_commits() -> No
     assert result.id == 1
     assert result.title == "Main Account"
     assert result.type == LedgerAccountType.ASSET
-    assert result.kind == LedgerAccountKind.BANK_ACCOUNT
-    assert result.currency_iso_code == "BRL"
-    assert unit_of_work.currencies.queried_iso_codes == ["BRL"]
+    assert result.instrument_kind == LedgerAccountInstrumentKind.BANK_ACCOUNT
+    assert result.balances == ()
+    assert ledger_accounts.created_ledger_accounts[0].title == "Main Account"
+    assert (
+        ledger_accounts.created_ledger_accounts[0].instrument_kind
+        == LedgerAccountInstrumentKind.BANK_ACCOUNT
+    )
     assert unit_of_work.committed is True
 
 
 @pytest.mark.anyio
-async def test_create_ledger_account_raises_for_unsupported_currency_iso_code() -> None:
+async def test_create_ledger_account_allows_missing_instrument_kind() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
     unit_of_work = _UnitOfWorkStub(ledger_accounts)
     use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
 
-    with pytest.raises(LedgerAccountCurrencyISOCodeNotSupportedError):
+    result = await use_case.create_ledger_account(
+        CreateLedgerAccountData(
+            title="Salary",
+            type=LedgerAccountType.INCOME,
+            instrument_kind=None,
+        ),
+    )
+
+    assert result.instrument_kind is None
+    assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_create_ledger_account_raises_for_invalid_type_and_instrument_kind() -> (
+    None
+):
+    ledger_accounts = _LedgerAccountOutputPortStub()
+    unit_of_work = _UnitOfWorkStub(ledger_accounts)
+    use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
+
+    with pytest.raises(LedgerAccountInstrumentKindNotAllowedError):
         await use_case.create_ledger_account(
             CreateLedgerAccountData(
-                title="Main Account",
-                type=LedgerAccountType.ASSET,
-                kind=LedgerAccountKind.BANK_ACCOUNT,
-                currency_iso_code="JPY",
+                title="Invalid Account",
+                type=LedgerAccountType.EXPENSE,
+                instrument_kind=LedgerAccountInstrumentKind.WALLET,
             ),
         )
 
@@ -306,14 +322,11 @@ async def test_update_ledger_account_raises_when_account_does_not_exist() -> Non
 @pytest.mark.anyio
 async def test_update_ledger_account_translates_output_port_not_found_error() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
-    ledger_accounts.ledger_accounts[1] = LedgerAccount(
-        id=1,
+    ledger_accounts.ledger_accounts[1] = _build_existing_ledger_account(
+        ledger_account_id=1,
         title="Main Account",
         type=LedgerAccountType.ASSET,
-        kind=LedgerAccountKind.BANK_ACCOUNT,
-        currency_iso_code="BRL",
-        created_at=_build_timestamp(1),
-        updated_at=_build_timestamp(1),
+        instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
     )
     ledger_accounts.update_error = LedgerAccountNotFoundOutputPortError()
     use_case = LedgerAccountUseCase(
@@ -331,8 +344,7 @@ async def test_delete_ledger_account_soft_deletes_by_default() -> None:
         NewLedgerAccount(
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
         ),
     )
     unit_of_work = _UnitOfWorkStub(ledger_accounts)
@@ -351,16 +363,27 @@ async def test_list_ledger_accounts_returns_active_accounts() -> None:
         NewLedgerAccount(
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
+        ),
+    )
+    ledger_accounts.ledger_accounts[created.id] = _build_existing_ledger_account(
+        ledger_account_id=created.id,
+        title=created.title,
+        type=created.type,
+        instrument_kind=created.instrument_kind,
+        balances=(
+            _build_balance(
+                currency_id=1,
+                current_balance="100.00",
+                future_balance="150.00",
+            ),
         ),
     )
     await ledger_accounts.create_ledger_account(
         NewLedgerAccount(
             title="Credit Card",
             type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-            currency_iso_code="USD",
+            instrument_kind=LedgerAccountInstrumentKind.CREDIT_CARD,
         ),
     )
     await ledger_accounts.soft_delete_ledger_account(created.id)
@@ -380,16 +403,22 @@ async def test_list_ledger_accounts_returns_active_accounts() -> None:
 
 
 @pytest.mark.anyio
-async def test_get_ledger_account_returns_existing_account() -> None:
+async def test_get_ledger_account_returns_existing_account_with_balances() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
-    created = await ledger_accounts.create_ledger_account(
-        NewLedgerAccount(
-            title="Main Account",
-            type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+    created = _build_existing_ledger_account(
+        ledger_account_id=1,
+        title="Main Account",
+        type=LedgerAccountType.ASSET,
+        instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
+        balances=(
+            _build_balance(
+                currency_id=1,
+                current_balance="100.00",
+                future_balance="125.00",
+            ),
         ),
     )
+    ledger_accounts.ledger_accounts[created.id] = created
     use_case = LedgerAccountUseCase(
         _UnitOfWorkFactoryStub(_UnitOfWorkStub(ledger_accounts)),
     )
@@ -397,84 +426,60 @@ async def test_get_ledger_account_returns_existing_account() -> None:
     result = await use_case.get_ledger_account(created.id)
 
     assert result == created
-
-
-@pytest.mark.anyio
-async def test_create_ledger_account_normalizes_currency_iso_code_before_lookup() -> (
-    None
-):
-    ledger_accounts = _LedgerAccountOutputPortStub()
-    currencies = _CurrencyOutputPortStub()
-    unit_of_work = _UnitOfWorkStub(ledger_accounts, currencies)
-    use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
-
-    result = await use_case.create_ledger_account(
-        CreateLedgerAccountData(
-            title="Main Account",
-            type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code=" brl ",
-        ),
-    )
-
-    assert result.currency_iso_code == "BRL"
-    assert currencies.queried_iso_codes == ["BRL"]
+    assert result.balances[0].currency_id == 1
 
 
 @pytest.mark.anyio
 async def test_update_ledger_account_replaces_fields_and_commits() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
-    created = await ledger_accounts.create_ledger_account(
-        NewLedgerAccount(
-            title="Main Account",
-            type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+    created = _build_existing_ledger_account(
+        ledger_account_id=1,
+        title="Main Account",
+        type=LedgerAccountType.ASSET,
+        instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
+        balances=(
+            _build_balance(
+                currency_id=1,
+                current_balance="100.00",
+                future_balance="120.00",
+            ),
         ),
     )
+    ledger_accounts.ledger_accounts[created.id] = created
     unit_of_work = _UnitOfWorkStub(ledger_accounts)
     use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
 
-    result = await use_case.update_ledger_account(
-        created.id,
-        UpdateLedgerAccountData(
-            title="Credit Card",
-            type=LedgerAccountType.LIABILITY,
-            kind=LedgerAccountKind.CREDIT_CARD,
-            currency_iso_code=" usd ",
-        ),
-    )
+    result = await use_case.update_ledger_account(created.id, _build_update_data())
 
     assert result.title == "Credit Card"
     assert result.type == LedgerAccountType.LIABILITY
-    assert result.kind == LedgerAccountKind.CREDIT_CARD
-    assert result.currency_iso_code == "USD"
-    assert unit_of_work.currencies.queried_iso_codes[-1] == "USD"
+    assert result.instrument_kind == LedgerAccountInstrumentKind.CREDIT_CARD
+    assert result.balances == created.balances
     assert unit_of_work.committed is True
 
 
 @pytest.mark.anyio
-async def test_update_ledger_account_raises_for_unsupported_currency_iso_code() -> None:
+async def test_update_ledger_account_raises_for_invalid_type_and_instrument_kind() -> (
+    None
+):
     ledger_accounts = _LedgerAccountOutputPortStub()
     created = await ledger_accounts.create_ledger_account(
         NewLedgerAccount(
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
         ),
     )
     unit_of_work = _UnitOfWorkStub(ledger_accounts)
     use_case = LedgerAccountUseCase(_UnitOfWorkFactoryStub(unit_of_work))
 
-    with pytest.raises(LedgerAccountCurrencyISOCodeNotSupportedError):
+    with pytest.raises(LedgerAccountInstrumentKindNotAllowedError):
         await use_case.update_ledger_account(
             created.id,
             UpdateLedgerAccountData(
-                title="Credit Card",
-                type=LedgerAccountType.LIABILITY,
-                kind=LedgerAccountKind.CREDIT_CARD,
-                currency_iso_code="JPY",
+                title="Invalid Update",
+                type=LedgerAccountType.EQUITY,
+                instrument_kind=LedgerAccountInstrumentKind.CREDIT_CARD,
             ),
         )
 
@@ -488,8 +493,7 @@ async def test_delete_ledger_account_hard_deletes_when_requested() -> None:
         NewLedgerAccount(
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
         ),
     )
     await ledger_accounts.soft_delete_ledger_account(created.id)
@@ -509,8 +513,7 @@ async def test_delete_ledger_account_translates_output_port_not_found_error() ->
         NewLedgerAccount(
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
         ),
     )
     ledger_accounts.delete_error = LedgerAccountNotFoundOutputPortError()
@@ -543,8 +546,7 @@ async def test_delete_ledger_account_translates_output_port_not_found_on_hard_de
         NewLedgerAccount(
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
         ),
     )
     await ledger_accounts.soft_delete_ledger_account(created.id)

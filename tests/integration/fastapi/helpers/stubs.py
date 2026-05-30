@@ -226,8 +226,7 @@ class LedgerAccountInputPortStub(LedgerAccountInputPort):
             id=self._next_ledger_account_id,
             title=data.title,
             type=data.type,
-            kind=data.kind,
-            currency_iso_code=data.currency_iso_code,
+            instrument_kind=data.instrument_kind,
             created_at=build_timestamp(1),
             updated_at=build_timestamp(1),
         )
@@ -245,8 +244,7 @@ class LedgerAccountInputPortStub(LedgerAccountInputPort):
             id=current.id,
             title=data.title,
             type=data.type,
-            kind=data.kind,
-            currency_iso_code=data.currency_iso_code,
+            instrument_kind=data.instrument_kind,
             created_at=current.created_at,
             updated_at=build_timestamp(2),
         )

@@ -4,7 +4,7 @@ from decimal import Decimal
 from src.core.domain.currency import CurrencyChanges, NewCurrency
 from src.core.domain.ledger_account import (
     LedgerAccountChanges,
-    LedgerAccountKind,
+    LedgerAccountInstrumentKind,
     LedgerAccountType,
     NewLedgerAccount,
 )
@@ -65,14 +65,14 @@ def build_new_ledger_account(
     *,
     title: str = "Main Account",
     type: LedgerAccountType = LedgerAccountType.ASSET,
-    kind: LedgerAccountKind = LedgerAccountKind.BANK_ACCOUNT,
-    currency_iso_code: str = "BRL",
+    instrument_kind: LedgerAccountInstrumentKind | None = (
+        LedgerAccountInstrumentKind.BANK_ACCOUNT
+    ),
 ) -> NewLedgerAccount:
     return NewLedgerAccount(
         title=title,
         type=type,
-        kind=kind,
-        currency_iso_code=currency_iso_code,
+        instrument_kind=instrument_kind,
     )
 
 
@@ -80,14 +80,14 @@ def build_ledger_account_changes(
     *,
     title: str = "Credit Card",
     type: LedgerAccountType = LedgerAccountType.LIABILITY,
-    kind: LedgerAccountKind = LedgerAccountKind.CREDIT_CARD,
-    currency_iso_code: str = "USD",
+    instrument_kind: LedgerAccountInstrumentKind | None = (
+        LedgerAccountInstrumentKind.CREDIT_CARD
+    ),
 ) -> LedgerAccountChanges:
     return LedgerAccountChanges(
         title=title,
         type=type,
-        kind=kind,
-        currency_iso_code=currency_iso_code,
+        instrument_kind=instrument_kind,
     )
 
 
@@ -132,17 +132,19 @@ def build_new_transaction(
     food_tag_id: int,
     travel_tag_id: int,
     status: TransactionStatus = TransactionStatus.PENDING,
+    expense_currency_id: int = 1,
+    credit_card_currency_id: int = 1,
 ) -> NewTransaction:
     return NewTransaction(
         effective_at=datetime(2026, 5, 11, 14, 30, tzinfo=UTC),
         title="Airline tickets",
         description="Family vacation purchase",
         status=status,
-        currency="BRL",
         entries=(
             NewEntry(
                 ledger_account_id=expense_ledger_account_id,
                 amount=Decimal("1200.00"),
+                currency_id=expense_currency_id,
                 statement_closing_date=None,
                 statement_due_date=None,
                 entry_tags=(
@@ -153,6 +155,7 @@ def build_new_transaction(
             NewEntry(
                 ledger_account_id=credit_card_ledger_account_id,
                 amount=Decimal("-1200.00"),
+                currency_id=credit_card_currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 6, 10),
             ),
@@ -165,16 +168,18 @@ def build_transaction_changes(
     expense_ledger_account_id: int,
     credit_card_ledger_account_id: int,
     travel_tag_id: int,
+    expense_currency_id: int = 1,
+    credit_card_currency_id: int = 1,
 ) -> TransactionChanges:
     return TransactionChanges(
         effective_at=datetime(2026, 5, 12, 9, 0, tzinfo=UTC),
         title="Hotel reservation",
         description="Updated pending purchase",
-        currency="BRL",
         entries=(
             NewEntry(
                 ledger_account_id=expense_ledger_account_id,
                 amount=Decimal("900.00"),
+                currency_id=expense_currency_id,
                 statement_closing_date=None,
                 statement_due_date=None,
                 entry_tags=(NewEntryTag(tag_id=travel_tag_id),),
@@ -182,6 +187,7 @@ def build_transaction_changes(
             NewEntry(
                 ledger_account_id=credit_card_ledger_account_id,
                 amount=Decimal("-900.00"),
+                currency_id=credit_card_currency_id,
                 statement_closing_date=date(2026, 6, 30),
                 statement_due_date=date(2026, 7, 10),
             ),

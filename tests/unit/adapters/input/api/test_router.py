@@ -17,7 +17,7 @@ from src.core.domain.healthz import (
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
     LedgerAccount,
-    LedgerAccountKind,
+    LedgerAccountInstrumentKind,
     LedgerAccountType,
     UpdateLedgerAccountData,
 )
@@ -215,8 +215,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             id=ledger_account_id,
             title="Main Account",
             type=LedgerAccountType.ASSET,
-            kind=LedgerAccountKind.BANK_ACCOUNT,
-            currency_iso_code="BRL",
+            instrument_kind=LedgerAccountInstrumentKind.BANK_ACCOUNT,
             created_at=_build_timestamp(year=2026, month=5, day=1),
             updated_at=_build_timestamp(year=2026, month=5, day=2),
         )
@@ -229,8 +228,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             id=1,
             title=data.title,
             type=data.type,
-            kind=data.kind,
-            currency_iso_code=data.currency_iso_code,
+            instrument_kind=data.instrument_kind,
             created_at=_build_timestamp(year=2026, month=5, day=1),
             updated_at=_build_timestamp(year=2026, month=5, day=1),
         )
@@ -244,8 +242,7 @@ class _LedgerAccountInputPortStub(LedgerAccountInputPort):
             id=ledger_account_id,
             title=data.title,
             type=data.type,
-            kind=data.kind,
-            currency_iso_code=data.currency_iso_code,
+            instrument_kind=data.instrument_kind,
             created_at=_build_timestamp(year=2026, month=5, day=1),
             updated_at=_build_timestamp(year=2026, month=5, day=2),
         )

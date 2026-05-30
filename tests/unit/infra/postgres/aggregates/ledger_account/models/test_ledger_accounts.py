@@ -1,5 +1,3 @@
-from sqlalchemy import String
-
 from src.infra.postgres.aggregates.ledger_account.models.ledger_accounts import (
     LedgerAccountRecord,
 )
@@ -20,10 +18,11 @@ def test_ledger_account_record_table_matches_expected_shape() -> None:
         "deleted_at",
         "title",
         "type",
-        "kind",
-        "currency_iso_code",
+        "instrument_kind",
     }
     assert list(ledger_accounts_table.primary_key.columns.keys()) == ["id"]
     assert ledger_accounts_table.c["type"].type.name == "ledger_account_type_enum"
-    assert ledger_accounts_table.c["kind"].type.name == "ledger_account_kind_enum"
-    assert isinstance(ledger_accounts_table.c.currency_iso_code.type, String)
+    assert (
+        ledger_accounts_table.c["instrument_kind"].type.name
+        == "ledger_account_instrument_kind_enum"
+    )

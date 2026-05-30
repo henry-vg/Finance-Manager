@@ -10,14 +10,14 @@ from src.core.domain.transaction import (
     ("current_status", "new_status", "expected"),
     [
         (TransactionStatus.PENDING, TransactionStatus.PENDING, False),
-        (TransactionStatus.PENDING, TransactionStatus.EFFECTIVE, True),
-        (TransactionStatus.PENDING, TransactionStatus.CANCELED, True),
-        (TransactionStatus.EFFECTIVE, TransactionStatus.PENDING, False),
-        (TransactionStatus.EFFECTIVE, TransactionStatus.EFFECTIVE, False),
-        (TransactionStatus.EFFECTIVE, TransactionStatus.CANCELED, True),
-        (TransactionStatus.CANCELED, TransactionStatus.PENDING, False),
-        (TransactionStatus.CANCELED, TransactionStatus.EFFECTIVE, False),
-        (TransactionStatus.CANCELED, TransactionStatus.CANCELED, False),
+        (TransactionStatus.PENDING, TransactionStatus.POSTED, True),
+        (TransactionStatus.PENDING, TransactionStatus.VOIDED, True),
+        (TransactionStatus.POSTED, TransactionStatus.PENDING, False),
+        (TransactionStatus.POSTED, TransactionStatus.POSTED, False),
+        (TransactionStatus.POSTED, TransactionStatus.VOIDED, False),
+        (TransactionStatus.VOIDED, TransactionStatus.PENDING, False),
+        (TransactionStatus.VOIDED, TransactionStatus.POSTED, False),
+        (TransactionStatus.VOIDED, TransactionStatus.VOIDED, False),
     ],
 )
 def test_can_transition_transaction_status_matches_transition_matrix(

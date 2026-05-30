@@ -11,6 +11,7 @@ def test_entry_record_table_matches_expected_shape() -> None:
     entries_table = EntryRecord.__table__
     transaction_fk = next(iter(entries_table.c.transaction_id.foreign_keys))
     ledger_account_fk = next(iter(entries_table.c.ledger_account_id.foreign_keys))
+    currency_fk = next(iter(entries_table.c.currency_id.foreign_keys))
 
     assert set(entries_table.columns.keys()) == {
         "id",
@@ -20,6 +21,7 @@ def test_entry_record_table_matches_expected_shape() -> None:
         "deleted_at",
         "transaction_id",
         "ledger_account_id",
+        "currency_id",
         "amount",
         "statement_closing_date",
         "statement_due_date",
@@ -29,3 +31,4 @@ def test_entry_record_table_matches_expected_shape() -> None:
     assert transaction_fk.target_fullname == "transactions.id"
     assert transaction_fk.ondelete == "CASCADE"
     assert ledger_account_fk.target_fullname == "ledger_accounts.id"
+    assert currency_fk.target_fullname == "currencies.id"

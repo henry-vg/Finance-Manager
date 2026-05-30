@@ -3,9 +3,10 @@ from decimal import Decimal
 
 import pytest
 
+from src.core.domain.currency import Currency
 from src.core.domain.ledger_account import (
     LedgerAccount,
-    LedgerAccountKind,
+    LedgerAccountInstrumentKind,
     LedgerAccountType,
 )
 from src.core.domain.tag import Tag
@@ -20,11 +21,11 @@ from src.core.domain.transaction import (
     Transaction,
     TransactionChanges,
     TransactionEntriesMustBalanceError,
+    TransactionEntryCurrencyNotFoundError,
     TransactionEntryRequiresCreditCardLedgerAccountError,
     TransactionEntryStatementDatesMustBeProvidedTogetherError,
     TransactionEntryStatementDueDateMustBeAfterClosingDateError,
     TransactionEntryTagsMustBeUniqueError,
-    TransactionLedgerAccountCurrencyMismatchError,
     TransactionLedgerAccountNotFoundError,
     TransactionMustBePendingError,
     TransactionMustHaveAtLeastTwoEntriesError,
@@ -35,6 +36,7 @@ from src.core.domain.transaction import (
     TransactionWithEntries,
     UpdateTransactionData,
 )
+from src.core.ports.output.currency_output_port import CurrencyOutputPort
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.transaction_output_port import (
@@ -53,6 +55,19 @@ def _build_timestamp(day: int) -> datetime:
     return datetime(2026, 5, day, tzinfo=UTC)
 
 
+def _build_currency(*, currency_id: int, iso_code: str) -> Currency:
+    return Currency(
+        id=currency_id,
+        iso_code=iso_code,
+        iso_numeric="000",
+        name=f"{iso_code} currency",
+        symbol="$",
+        decimal_places=2,
+        created_at=_build_timestamp(1),
+        updated_at=_build_timestamp(1),
+    )
+
+
 def _build_transaction_data(
     *,
     expense_ledger_account_id: int = 1,
@@ -60,17 +75,19 @@ def _build_transaction_data(
     food_tag_id: int = 10,
     travel_tag_id: int = 11,
     status: TransactionStatus = TransactionStatus.PENDING,
+    expense_currency_id: int = 1,
+    credit_card_currency_id: int = 1,
 ) -> CreateTransactionData:
     return CreateTransactionData(
         effective_at=_build_timestamp(11),
         title="Airline tickets",
         description="Family vacation purchase",
         status=status,
-        currency="BRL",
         entries=(
             NewEntry(
                 ledger_account_id=expense_ledger_account_id,
                 amount=Decimal("1200.00"),
+                currency_id=expense_currency_id,
                 statement_closing_date=None,
                 statement_due_date=None,
                 entry_tags=(
@@ -81,6 +98,7 @@ def _build_transaction_data(
             NewEntry(
                 ledger_account_id=credit_card_ledger_account_id,
                 amount=Decimal("-1200.00"),
+                currency_id=credit_card_currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 6, 10),
             ),
@@ -105,7 +123,6 @@ def _build_update_data(
         effective_at=create_data.effective_at,
         title=create_data.title,
         description=create_data.description,
-        currency=create_data.currency,
         entries=create_data.entries,
     )
 
@@ -114,8 +131,7 @@ def _build_ledger_account(
     *,
     ledger_account_id: int,
     type: LedgerAccountType,
-    kind: LedgerAccountKind,
-    currency: str = "BRL",
+    instrument_kind: LedgerAccountInstrumentKind | None,
 ) -> LedgerAccount:
     return LedgerAccount(
         id=ledger_account_id,
@@ -123,8 +139,7 @@ def _build_ledger_account(
         updated_at=_build_timestamp(1),
         title=f"Ledger Account {ledger_account_id}",
         type=type,
-        kind=kind,
-        currency_iso_code=currency,
+        instrument_kind=instrument_kind,
     )
 
 
@@ -142,7 +157,6 @@ def _build_transaction_with_entries(
             title="Airline tickets",
             description="Family vacation purchase",
             status=status,
-            currency="BRL",
         ),
         entries=(
             EntryWithTags(
@@ -153,6 +167,7 @@ def _build_transaction_with_entries(
                     transaction_id=transaction_id,
                     ledger_account_id=1,
                     amount=Decimal("1200.00"),
+                    currency_id=1,
                     statement_closing_date=None,
                     statement_due_date=None,
                 ),
@@ -166,6 +181,7 @@ def _build_transaction_with_entries(
                     transaction_id=transaction_id,
                     ledger_account_id=2,
                     amount=Decimal("-1200.00"),
+                    currency_id=1,
                     statement_closing_date=date(2026, 5, 31),
                     statement_due_date=date(2026, 6, 10),
                 ),
@@ -180,11 +196,11 @@ class _TransactionOutputPortStub(TransactionOutputPort):
         self.transactions: dict[int, TransactionWithEntries] = {}
         self.created_transactions: list[NewTransaction] = []
         self.updated_transactions: list[tuple[int, TransactionChanges]] = []
-        self.marked_effective_transactions: list[int] = []
-        self.canceled_transactions: list[int] = []
+        self.posted_transactions: list[int] = []
+        self.voided_transactions: list[int] = []
         self.update_error: Exception | None = None
-        self.mark_effective_error: Exception | None = None
-        self.cancel_error: Exception | None = None
+        self.post_error: Exception | None = None
+        self.void_error: Exception | None = None
         self.next_id = 1
 
     async def get_transaction_by_id(
@@ -227,43 +243,54 @@ class _TransactionOutputPortStub(TransactionOutputPort):
         self.transactions[transaction_id] = updated_transaction
         return updated_transaction
 
-    async def mark_transaction_effective(
+    async def post_transaction(
         self,
         transaction_id: int,
     ) -> TransactionWithEntries:
-        if self.mark_effective_error is not None:
-            raise self.mark_effective_error
-
-        transitioned_transaction = _build_transaction_with_entries(
-            transaction_id=transaction_id,
-            status=TransactionStatus.EFFECTIVE,
-        )
+        if self.post_error is not None:
+            raise self.post_error
 
         if transaction_id not in self.transactions:
             raise TransactionNotFoundOutputPortError()
 
-        self.marked_effective_transactions.append(transaction_id)
+        transitioned_transaction = _build_transaction_with_entries(
+            transaction_id=transaction_id,
+            status=TransactionStatus.POSTED,
+        )
+        self.posted_transactions.append(transaction_id)
         self.transactions[transaction_id] = transitioned_transaction
         return transitioned_transaction
 
-    async def cancel_transaction(
+    async def void_transaction(
         self,
         transaction_id: int,
     ) -> TransactionWithEntries:
-        if self.cancel_error is not None:
-            raise self.cancel_error
-
-        transitioned_transaction = _build_transaction_with_entries(
-            transaction_id=transaction_id,
-            status=TransactionStatus.CANCELED,
-        )
+        if self.void_error is not None:
+            raise self.void_error
 
         if transaction_id not in self.transactions:
             raise TransactionNotFoundOutputPortError()
 
-        self.canceled_transactions.append(transaction_id)
+        transitioned_transaction = _build_transaction_with_entries(
+            transaction_id=transaction_id,
+            status=TransactionStatus.VOIDED,
+        )
+        self.voided_transactions.append(transaction_id)
         self.transactions[transaction_id] = transitioned_transaction
         return transitioned_transaction
+
+
+class _CurrencyOutputPortStub(CurrencyOutputPort):
+    def __init__(self) -> None:
+        self.currencies_by_id = {
+            1: _build_currency(currency_id=1, iso_code="BRL"),
+            2: _build_currency(currency_id=2, iso_code="USD"),
+        }
+        self.queried_currency_ids: list[int] = []
+
+    async def get_currency_by_id(self, currency_id: int) -> Currency | None:
+        self.queried_currency_ids.append(currency_id)
+        return self.currencies_by_id.get(currency_id)
 
 
 class _LedgerAccountOutputPortStub(LedgerAccountOutputPort):
@@ -331,11 +358,17 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
         transactions: _TransactionOutputPortStub,
         ledger_accounts: _LedgerAccountOutputPortStub,
         tags: _TagOutputPortStub,
+        currencies: _CurrencyOutputPortStub | None = None,
     ) -> None:
         self._transactions = transactions
         self._ledger_accounts = ledger_accounts
         self._tags = tags
+        self._currencies = currencies or _CurrencyOutputPortStub()
         self.committed = False
+
+    @property
+    def currencies(self) -> CurrencyOutputPort:
+        return self._currencies
 
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort:
@@ -394,12 +427,12 @@ def _build_use_case() -> tuple[
     ledger_accounts.ledger_accounts[1] = _build_ledger_account(
         ledger_account_id=1,
         type=LedgerAccountType.EXPENSE,
-        kind=LedgerAccountKind.OTHER,
+        instrument_kind=None,
     )
     ledger_accounts.ledger_accounts[2] = _build_ledger_account(
         ledger_account_id=2,
         type=LedgerAccountType.LIABILITY,
-        kind=LedgerAccountKind.CREDIT_CARD,
+        instrument_kind=LedgerAccountInstrumentKind.CREDIT_CARD,
     )
     tags = _TagOutputPortStub()
     tags.tags[10] = _build_tag(tag_id=10)
@@ -426,34 +459,50 @@ async def test_create_transaction_returns_created_transaction_and_commits() -> N
 
     assert result.transaction.id == 1
     assert transactions.created_transactions[0].status == TransactionStatus.PENDING
+    assert transactions.created_transactions[0].entries[0].currency_id == 1
     assert len(transactions.created_transactions[0].entries) == 2
     assert unit_of_work.committed is True
 
 
 @pytest.mark.anyio
-async def test_create_transaction_allows_effective_historical_transaction() -> None:
+async def test_create_transaction_allows_posted_historical_transaction() -> None:
     use_case, transactions, _, _, unit_of_work = _build_use_case()
 
     result = await use_case.create_transaction(
-        _build_transaction_data(status=TransactionStatus.EFFECTIVE),
+        _build_transaction_data(status=TransactionStatus.POSTED),
     )
 
-    assert transactions.created_transactions[0].status == TransactionStatus.EFFECTIVE
-    assert result.transaction.status == TransactionStatus.EFFECTIVE
+    assert transactions.created_transactions[0].status == TransactionStatus.POSTED
+    assert result.transaction.status == TransactionStatus.POSTED
     assert unit_of_work.committed is True
 
 
 @pytest.mark.anyio
-async def test_create_transaction_allows_canceled_historical_transaction() -> None:
+async def test_create_transaction_allows_voided_historical_transaction() -> None:
     use_case, transactions, _, _, unit_of_work = _build_use_case()
 
     result = await use_case.create_transaction(
-        _build_transaction_data(status=TransactionStatus.CANCELED),
+        _build_transaction_data(status=TransactionStatus.VOIDED),
     )
 
-    assert transactions.created_transactions[0].status == TransactionStatus.CANCELED
-    assert result.transaction.status == TransactionStatus.CANCELED
+    assert transactions.created_transactions[0].status == TransactionStatus.VOIDED
+    assert result.transaction.status == TransactionStatus.VOIDED
     assert unit_of_work.committed is True
+
+
+@pytest.mark.anyio
+async def test_create_transaction_queries_entry_currencies_by_id() -> None:
+    use_case, transactions, _, _, unit_of_work = _build_use_case()
+
+    await use_case.create_transaction(
+        _build_transaction_data(
+            expense_currency_id=1,
+            credit_card_currency_id=2,
+        ),
+    )
+
+    assert transactions.created_transactions[0].entries[0].currency_id == 1
+    assert set(unit_of_work.currencies.queried_currency_ids) == {1, 2}
 
 
 @pytest.mark.anyio
@@ -465,7 +514,6 @@ async def test_create_transaction_requires_at_least_two_entries() -> None:
         title=data.title,
         description=data.description,
         status=data.status,
-        currency=data.currency,
         entries=(data.entries[0],),
     )
 
@@ -484,12 +532,12 @@ async def test_create_transaction_requires_balanced_entries() -> None:
         title=data.title,
         description=data.description,
         status=data.status,
-        currency=data.currency,
         entries=(
             data.entries[0],
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=Decimal("-1199.99"),
+                currency_id=data.entries[1].currency_id,
                 statement_closing_date=data.entries[1].statement_closing_date,
                 statement_due_date=data.entries[1].statement_due_date,
             ),
@@ -512,17 +560,13 @@ async def test_create_transaction_requires_existing_ledger_accounts() -> None:
 
 
 @pytest.mark.anyio
-async def test_create_transaction_requires_matching_ledger_account_currency() -> None:
-    use_case, _, ledger_accounts, _, _ = _build_use_case()
-    ledger_accounts.ledger_accounts[2] = _build_ledger_account(
-        ledger_account_id=2,
-        type=LedgerAccountType.LIABILITY,
-        kind=LedgerAccountKind.CREDIT_CARD,
-        currency="USD",
-    )
+async def test_create_transaction_requires_existing_entry_currency() -> None:
+    use_case, _, _, _, _ = _build_use_case()
 
-    with pytest.raises(TransactionLedgerAccountCurrencyMismatchError):
-        await use_case.create_transaction(_build_transaction_data())
+    with pytest.raises(TransactionEntryCurrencyNotFoundError):
+        await use_case.create_transaction(
+            _build_transaction_data(credit_card_currency_id=999),
+        )
 
 
 @pytest.mark.anyio
@@ -543,11 +587,11 @@ async def test_create_transaction_rejects_duplicate_tags_in_the_same_entry() -> 
         title=data.title,
         description=data.description,
         status=data.status,
-        currency=data.currency,
         entries=(
             NewEntry(
                 ledger_account_id=data.entries[0].ledger_account_id,
                 amount=data.entries[0].amount,
+                currency_id=data.entries[0].currency_id,
                 statement_closing_date=data.entries[0].statement_closing_date,
                 statement_due_date=data.entries[0].statement_due_date,
                 entry_tags=(
@@ -572,12 +616,12 @@ async def test_create_transaction_requires_statement_dates_together() -> None:
         title=data.title,
         description=data.description,
         status=data.status,
-        currency=data.currency,
         entries=(
             data.entries[0],
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=data.entries[1].amount,
+                currency_id=data.entries[1].currency_id,
                 statement_closing_date=data.entries[1].statement_closing_date,
                 statement_due_date=None,
             ),
@@ -606,12 +650,12 @@ async def test_create_transaction_requires_due_date_after_closing_date() -> None
         title=data.title,
         description=data.description,
         status=data.status,
-        currency=data.currency,
         entries=(
             data.entries[0],
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=data.entries[1].amount,
+                currency_id=data.entries[1].currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 5, 31),
             ),
@@ -643,11 +687,145 @@ async def test_update_transaction_requires_current_transaction_to_be_pending() -
     use_case, transactions, _, _, _ = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(
         transaction_id=1,
-        status=TransactionStatus.EFFECTIVE,
+        status=TransactionStatus.POSTED,
     )
 
     with pytest.raises(TransactionMustBePendingError):
         await use_case.update_transaction(1, _build_update_data())
+
+
+@pytest.mark.anyio
+async def test_update_transaction_requires_at_least_two_entries() -> None:
+    use_case, transactions, _, _, unit_of_work = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    data = _build_update_data()
+    single_entry_data = UpdateTransactionData(
+        effective_at=data.effective_at,
+        title=data.title,
+        description=data.description,
+        entries=(data.entries[0],),
+    )
+
+    with pytest.raises(TransactionMustHaveAtLeastTwoEntriesError):
+        await use_case.update_transaction(1, single_entry_data)
+
+    assert unit_of_work.committed is False
+
+
+@pytest.mark.anyio
+async def test_update_transaction_requires_balanced_entries() -> None:
+    use_case, transactions, _, _, unit_of_work = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    data = _build_update_data()
+    unbalanced_data = UpdateTransactionData(
+        effective_at=data.effective_at,
+        title=data.title,
+        description=data.description,
+        entries=(
+            data.entries[0],
+            NewEntry(
+                ledger_account_id=data.entries[1].ledger_account_id,
+                amount=Decimal("-1199.99"),
+                currency_id=data.entries[1].currency_id,
+                statement_closing_date=data.entries[1].statement_closing_date,
+                statement_due_date=data.entries[1].statement_due_date,
+            ),
+        ),
+    )
+
+    with pytest.raises(TransactionEntriesMustBalanceError):
+        await use_case.update_transaction(1, unbalanced_data)
+
+    assert unit_of_work.committed is False
+
+
+@pytest.mark.anyio
+async def test_update_transaction_rejects_duplicate_tags_in_the_same_entry() -> None:
+    use_case, transactions, _, _, _ = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    data = _build_update_data()
+    duplicated_tags_data = UpdateTransactionData(
+        effective_at=data.effective_at,
+        title=data.title,
+        description=data.description,
+        entries=(
+            NewEntry(
+                ledger_account_id=data.entries[0].ledger_account_id,
+                amount=data.entries[0].amount,
+                currency_id=data.entries[0].currency_id,
+                statement_closing_date=data.entries[0].statement_closing_date,
+                statement_due_date=data.entries[0].statement_due_date,
+                entry_tags=(
+                    NewEntryTag(tag_id=10),
+                    NewEntryTag(tag_id=10),
+                ),
+            ),
+            data.entries[1],
+        ),
+    )
+
+    with pytest.raises(TransactionEntryTagsMustBeUniqueError):
+        await use_case.update_transaction(1, duplicated_tags_data)
+
+
+@pytest.mark.anyio
+async def test_update_transaction_requires_statement_dates_together() -> None:
+    use_case, transactions, _, _, _ = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    data = _build_update_data()
+    invalid_dates_data = UpdateTransactionData(
+        effective_at=data.effective_at,
+        title=data.title,
+        description=data.description,
+        entries=(
+            data.entries[0],
+            NewEntry(
+                ledger_account_id=data.entries[1].ledger_account_id,
+                amount=data.entries[1].amount,
+                currency_id=data.entries[1].currency_id,
+                statement_closing_date=data.entries[1].statement_closing_date,
+                statement_due_date=None,
+            ),
+        ),
+    )
+
+    with pytest.raises(TransactionEntryStatementDatesMustBeProvidedTogetherError):
+        await use_case.update_transaction(1, invalid_dates_data)
+
+
+@pytest.mark.anyio
+async def test_update_transaction_requires_credit_card_for_statement_dates() -> None:
+    use_case, transactions, _, _, _ = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    data = _build_update_data(credit_card_ledger_account_id=1)
+
+    with pytest.raises(TransactionEntryRequiresCreditCardLedgerAccountError):
+        await use_case.update_transaction(1, data)
+
+
+@pytest.mark.anyio
+async def test_update_transaction_requires_due_date_after_closing_date() -> None:
+    use_case, transactions, _, _, _ = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    data = _build_update_data()
+    invalid_order_data = UpdateTransactionData(
+        effective_at=data.effective_at,
+        title=data.title,
+        description=data.description,
+        entries=(
+            data.entries[0],
+            NewEntry(
+                ledger_account_id=data.entries[1].ledger_account_id,
+                amount=data.entries[1].amount,
+                currency_id=data.entries[1].currency_id,
+                statement_closing_date=date(2026, 5, 31),
+                statement_due_date=date(2026, 5, 31),
+            ),
+        ),
+    )
+
+    with pytest.raises(TransactionEntryStatementDueDateMustBeAfterClosingDateError):
+        await use_case.update_transaction(1, invalid_order_data)
 
 
 @pytest.mark.anyio
@@ -674,96 +852,89 @@ async def test_update_transaction_returns_updated_transaction_and_commits() -> N
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_requires_existing_transaction() -> None:
+async def test_post_transaction_requires_existing_transaction() -> None:
     use_case, _, _, _, _ = _build_use_case()
 
     with pytest.raises(TransactionNotFoundError):
-        await use_case.mark_transaction_effective(999)
+        await use_case.post_transaction(999)
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_rejects_invalid_transition() -> None:
+async def test_post_transaction_rejects_invalid_transition() -> None:
     use_case, transactions, _, _, _ = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(
         transaction_id=1,
-        status=TransactionStatus.EFFECTIVE,
+        status=TransactionStatus.POSTED,
     )
 
     with pytest.raises(TransactionStatusTransitionNotAllowedError):
-        await use_case.mark_transaction_effective(1)
+        await use_case.post_transaction(1)
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_translates_not_found_output_error() -> None:
+async def test_post_transaction_translates_not_found_output_error() -> None:
     use_case, transactions, _, _, _ = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
-    transactions.mark_effective_error = TransactionNotFoundOutputPortError()
+    transactions.post_error = TransactionNotFoundOutputPortError()
 
     with pytest.raises(TransactionNotFoundError):
-        await use_case.mark_transaction_effective(1)
+        await use_case.post_transaction(1)
 
 
 @pytest.mark.anyio
-async def test_mark_transaction_effective_returns_transitioned_transaction_and_commits() -> (
-    None
-):
+async def test_post_transaction_returns_transitioned_transaction_and_commits() -> None:
     use_case, transactions, _, _, unit_of_work = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
 
-    result = await use_case.mark_transaction_effective(1)
+    result = await use_case.post_transaction(1)
 
-    assert result.transaction.status == TransactionStatus.EFFECTIVE
-    assert transactions.marked_effective_transactions == [1]
+    assert result.transaction.status == TransactionStatus.POSTED
+    assert transactions.posted_transactions == [1]
     assert unit_of_work.committed is True
 
 
 @pytest.mark.anyio
-async def test_cancel_transaction_requires_existing_transaction() -> None:
+async def test_void_transaction_requires_existing_transaction() -> None:
     use_case, _, _, _, _ = _build_use_case()
 
     with pytest.raises(TransactionNotFoundError):
-        await use_case.cancel_transaction(999)
+        await use_case.void_transaction(999)
 
 
 @pytest.mark.anyio
-async def test_cancel_transaction_rejects_terminal_canceled_transaction() -> None:
+async def test_void_transaction_rejects_terminal_voided_transaction() -> None:
     use_case, transactions, _, _, _ = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(
         transaction_id=1,
-        status=TransactionStatus.CANCELED,
+        status=TransactionStatus.VOIDED,
     )
 
     with pytest.raises(TransactionStatusTransitionNotAllowedError):
-        await use_case.cancel_transaction(1)
+        await use_case.void_transaction(1)
 
 
 @pytest.mark.anyio
-async def test_cancel_transaction_returns_transitioned_transaction_and_commits() -> (
-    None
-):
+async def test_void_transaction_returns_transitioned_transaction_and_commits() -> None:
     use_case, transactions, _, _, unit_of_work = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
 
-    result = await use_case.cancel_transaction(1)
+    result = await use_case.void_transaction(1)
 
-    assert result.transaction.status == TransactionStatus.CANCELED
-    assert transactions.canceled_transactions == [1]
+    assert result.transaction.status == TransactionStatus.VOIDED
+    assert transactions.voided_transactions == [1]
     assert unit_of_work.committed is True
 
 
 @pytest.mark.anyio
-async def test_cancel_transaction_allows_effective_transaction() -> None:
-    use_case, transactions, _, _, unit_of_work = _build_use_case()
+async def test_void_transaction_rejects_posted_transaction() -> None:
+    use_case, transactions, _, _, _ = _build_use_case()
     transactions.transactions[1] = _build_transaction_with_entries(
         transaction_id=1,
-        status=TransactionStatus.EFFECTIVE,
+        status=TransactionStatus.POSTED,
     )
 
-    result = await use_case.cancel_transaction(1)
-
-    assert result.transaction.status == TransactionStatus.CANCELED
-    assert transactions.canceled_transactions == [1]
-    assert unit_of_work.committed is True
+    with pytest.raises(TransactionStatusTransitionNotAllowedError):
+        await use_case.void_transaction(1)
 
 
 @pytest.mark.anyio
