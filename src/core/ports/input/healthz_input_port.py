@@ -6,6 +6,6 @@ from src.core.domain.healthz import (
 )
 
 
-class HealthzInputPort(Protocol):
+class HealthzInputPort(Protocol):  # pragma: no cover
     async def get_healthz_liveness(self) -> HealthzLiveness: ...
     async def get_healthz_readiness(self) -> HealthzReadiness: ...

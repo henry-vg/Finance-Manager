@@ -1,3 +1,4 @@
+import json
 from http import HTTPStatus
 
 import httpx
@@ -5,7 +6,10 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from src.adapters.input.api.exception_handlers import add_exception_handlers
+from src.adapters.input.api.exception_handlers import (
+    _response_error,
+    add_exception_handlers,
+)
 
 
 class _Payload(BaseModel):
@@ -123,3 +127,24 @@ async def test_generic_exception_is_rendered_as_500_problem_details():
         expected_instance="http://test/boom",
         expected_trace_id=None,
     )
+
+
+def test_response_error_omits_empty_optional_fields_and_filters_reserved_extensions():
+    response = _response_error(
+        title="Internal Server Error",
+        status_code=200,
+        extensions={
+            "status": 418,
+            "detail": "ignored",
+            "custom_code": "traceable",
+        },
+    )
+
+    payload = json.loads(response.body)
+
+    assert response.status_code == 500
+    assert payload["title"] == "Internal Server Error"
+    assert payload["status"] == 500
+    assert payload["custom_code"] == "traceable"
+    assert "detail" not in payload
+    assert "instance" not in payload

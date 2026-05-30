@@ -11,7 +11,7 @@ class TransactionNotFoundOutputPortError(Exception):
     pass
 
 
-class TransactionOutputPort(Protocol):
+class TransactionOutputPort(Protocol):  # pragma: no cover
     async def get_transaction_by_id(
         self,
         transaction_id: int,

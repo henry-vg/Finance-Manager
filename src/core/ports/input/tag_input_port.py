@@ -4,7 +4,7 @@ from src.core.domain.tag import CreateTagData, Tag, UpdateTagData
 from src.core.shared import ListQuery, Page
 
 
-class TagInputPort(Protocol):
+class TagInputPort(Protocol):  # pragma: no cover
     async def list_tags(
         self,
         list_query: ListQuery,

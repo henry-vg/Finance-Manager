@@ -7,7 +7,7 @@ from .transaction_output_port import TransactionOutputPort
 from .user_output_port import UserOutputPort
 
 
-class UnitOfWorkOutputPort(Protocol):
+class UnitOfWorkOutputPort(Protocol):  # pragma: no cover
     @property
     def currencies(self) -> CurrencyOutputPort: ...
 
@@ -35,5 +35,5 @@ class UnitOfWorkOutputPort(Protocol):
     async def commit(self) -> None: ...
 
 
-class UnitOfWorkOutputPortFactory(Protocol):
+class UnitOfWorkOutputPortFactory(Protocol):  # pragma: no cover
     def __call__(self) -> UnitOfWorkOutputPort: ...

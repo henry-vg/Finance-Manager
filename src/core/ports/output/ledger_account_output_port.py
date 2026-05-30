@@ -12,7 +12,7 @@ class LedgerAccountNotFoundOutputPortError(Exception):
     pass
 
 
-class LedgerAccountOutputPort(Protocol):
+class LedgerAccountOutputPort(Protocol):  # pragma: no cover
     async def list_ledger_accounts(
         self,
         list_query: ListQuery,

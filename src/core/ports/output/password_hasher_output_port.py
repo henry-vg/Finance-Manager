@@ -1,7 +1,7 @@
 from typing import Protocol
 
 
-class PasswordHasherOutputPort(Protocol):
+class PasswordHasherOutputPort(Protocol):  # pragma: no cover
     def hash_password(
         self,
         password: str,

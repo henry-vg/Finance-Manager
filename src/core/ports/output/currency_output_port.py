@@ -12,7 +12,7 @@ class CurrencyISOCodeConflictOutputPortError(Exception):
     pass
 
 
-class CurrencyOutputPort(Protocol):
+class CurrencyOutputPort(Protocol):  # pragma: no cover
     async def list_currencies(
         self,
         list_query: ListQuery,

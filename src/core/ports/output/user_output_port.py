@@ -12,7 +12,7 @@ class UserEmailConflictOutputPortError(Exception):
     pass
 
 
-class UserOutputPort(Protocol):
+class UserOutputPort(Protocol):  # pragma: no cover
     async def list_users(
         self,
         list_query: ListQuery,

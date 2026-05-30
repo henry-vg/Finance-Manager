@@ -8,7 +8,7 @@ from src.core.domain.user import (
 from src.core.shared import ListQuery, Page
 
 
-class UserInputPort(Protocol):
+class UserInputPort(Protocol):  # pragma: no cover
     async def list_users(
         self,
         list_query: ListQuery,

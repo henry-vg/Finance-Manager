@@ -14,4 +14,4 @@ run-tests:
 	python3 -m pytest
 
 run-tests-with-coverage:
-	python3 -m pytest --cov=src --cov-report=term-missing
+	python3 -m pytest --cov=src --cov-branch --cov-report=term-missing

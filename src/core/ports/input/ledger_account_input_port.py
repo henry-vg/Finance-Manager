@@ -8,7 +8,7 @@ from src.core.domain.ledger_account import (
 from src.core.shared import ListQuery, Page
 
 
-class LedgerAccountInputPort(Protocol):
+class LedgerAccountInputPort(Protocol):  # pragma: no cover
     async def list_ledger_accounts(
         self,
         list_query: ListQuery,

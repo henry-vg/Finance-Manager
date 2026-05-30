@@ -8,7 +8,7 @@ class TagNotFoundOutputPortError(Exception):
     pass
 
 
-class TagOutputPort(Protocol):
+class TagOutputPort(Protocol):  # pragma: no cover
     async def list_tags(
         self,
         list_query: ListQuery,

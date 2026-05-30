@@ -128,3 +128,19 @@ async def test_post_transaction_raises_not_found_when_reload_returns_none(
         await repository.post_transaction(1)
 
     assert session.flush_calls == 1
+
+
+@pytest.mark.anyio
+async def test_replace_entries_skips_flush_when_nothing_is_deleted_or_created() -> None:
+    session = _FakeSession(scalars_results=([],))
+    repository = SQLAlchemyTransactionRepository(cast(Any, session))
+
+    entry_records, entry_tag_records = await repository._replace_entries(
+        transaction_id=1,
+        entries=(),
+        purge_existing=True,
+    )
+
+    assert entry_records == []
+    assert entry_tag_records == []
+    assert session.flush_calls == 0

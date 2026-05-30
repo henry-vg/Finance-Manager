@@ -7,7 +7,7 @@ from src.core.domain.transaction import (
 )
 
 
-class TransactionInputPort(Protocol):
+class TransactionInputPort(Protocol):  # pragma: no cover
     async def get_transaction(
         self,
         transaction_id: int,

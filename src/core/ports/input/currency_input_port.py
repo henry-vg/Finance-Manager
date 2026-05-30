@@ -8,7 +8,7 @@ from src.core.domain.currency import (
 from src.core.shared import ListQuery, Page
 
 
-class CurrencyInputPort(Protocol):
+class CurrencyInputPort(Protocol):  # pragma: no cover
     async def list_currencies(
         self,
         list_query: ListQuery,
