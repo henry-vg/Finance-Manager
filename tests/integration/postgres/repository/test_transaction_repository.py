@@ -14,6 +14,7 @@ from src.core.domain.transaction import (
     TransactionStatus,
     TransactionStatusTransitionNotAllowedError,
 )
+from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres import (
     EntryRecord,
     EntryTagRecord,
@@ -231,6 +232,59 @@ async def test_create_transaction_persists_explicit_posted_status(
     assert created_transaction.transaction.status == TransactionStatus.POSTED
     assert transaction_record is not None
     assert transaction_record.status == TransactionStatus.POSTED
+
+
+@pytest.mark.anyio
+async def test_list_transactions_returns_paginated_transactions_with_total(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        (
+            expense_ledger_account_id,
+            credit_card_ledger_account_id,
+            food_tag_id,
+            travel_tag_id,
+        ) = await _create_transaction_dependencies(session)
+        repository = SQLAlchemyTransactionRepository(session)
+
+        first_transaction = await repository.create_transaction(
+            build_new_transaction(
+                expense_ledger_account_id=expense_ledger_account_id,
+                credit_card_ledger_account_id=credit_card_ledger_account_id,
+                food_tag_id=food_tag_id,
+                travel_tag_id=travel_tag_id,
+            ),
+        )
+        second_transaction = await repository.create_transaction(
+            build_new_transaction(
+                expense_ledger_account_id=expense_ledger_account_id,
+                credit_card_ledger_account_id=credit_card_ledger_account_id,
+                food_tag_id=food_tag_id,
+                travel_tag_id=travel_tag_id,
+                status=TransactionStatus.POSTED,
+            ),
+        )
+        await session.commit()
+
+    async with postgres_session_factory() as session:
+        repository = SQLAlchemyTransactionRepository(session)
+        page = await repository.list_transactions(
+            ListQuery(
+                offset=0,
+                limit=10,
+                sort=(SortTerm(field="id", direction=SortDirection.ASC),),
+            ),
+        )
+
+    assert [transaction.id for transaction in page.items] == [
+        first_transaction.transaction.id,
+        second_transaction.transaction.id,
+    ]
+    assert [transaction.status for transaction in page.items] == [
+        TransactionStatus.PENDING,
+        TransactionStatus.POSTED,
+    ]
+    assert page.total == 2
 
 
 @pytest.mark.anyio

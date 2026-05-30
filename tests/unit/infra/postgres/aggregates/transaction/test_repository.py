@@ -8,6 +8,7 @@ from src.core.domain.transaction import TransactionStatus
 from src.core.ports.output.transaction_output_port import (
     TransactionNotFoundOutputPortError,
 )
+from src.core.shared import ListQuery, SortDirection, SortTerm
 from src.infra.postgres.aggregates.transaction.repository import (
     SQLAlchemyTransactionRepository,
 )
@@ -101,6 +102,37 @@ async def test_get_transaction_by_id_returns_transaction_with_empty_entries() ->
     assert transaction is not None
     assert transaction.transaction.id == 1
     assert transaction.entries == ()
+
+
+@pytest.mark.anyio
+async def test_list_transactions_returns_paginated_page_with_total() -> None:
+    repository = SQLAlchemyTransactionRepository(
+        cast(
+            Any,
+            _FakeSession(
+                scalar_results=(2,),
+                scalars_results=(
+                    [
+                        _build_transaction_record(id=2, title="Hotel"),
+                        _build_transaction_record(id=1, title="Airline tickets"),
+                    ],
+                ),
+            ),
+        ),
+    )
+
+    page = await repository.list_transactions(
+        ListQuery(
+            offset=0,
+            limit=10,
+            sort=(SortTerm(field="created_at", direction=SortDirection.DESC),),
+        ),
+    )
+
+    assert [transaction.id for transaction in page.items] == [2, 1]
+    assert page.offset == 0
+    assert page.limit == 10
+    assert page.total == 2
 
 
 @pytest.mark.anyio

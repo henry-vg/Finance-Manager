@@ -48,6 +48,7 @@ from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPortFactory,
 )
 from src.core.ports.output.user_output_port import UserOutputPort
+from src.core.shared import ListQuery, Page, SortDirection, SortTerm
 from src.core.usecases.transaction_usecase import TransactionUseCase
 
 
@@ -194,6 +195,7 @@ def _build_transaction_with_entries(
 class _TransactionOutputPortStub(TransactionOutputPort):
     def __init__(self) -> None:
         self.transactions: dict[int, TransactionWithEntries] = {}
+        self.list_transaction_queries: list[ListQuery] = []
         self.created_transactions: list[NewTransaction] = []
         self.updated_transactions: list[tuple[int, TransactionChanges]] = []
         self.posted_transactions: list[int] = []
@@ -202,6 +204,22 @@ class _TransactionOutputPortStub(TransactionOutputPort):
         self.post_error: Exception | None = None
         self.void_error: Exception | None = None
         self.next_id = 1
+
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]:
+        self.list_transaction_queries.append(list_query)
+        items = [
+            transaction_with_entries.transaction
+            for transaction_with_entries in self.transactions.values()
+        ]
+        return Page[Transaction](
+            items=items[list_query.offset : list_query.offset + list_query.limit],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=len(items),
+        )
 
     async def get_transaction_by_id(
         self,
@@ -449,6 +467,25 @@ def _build_use_case() -> tuple[
         tags,
         unit_of_work,
     )
+
+
+@pytest.mark.anyio
+async def test_list_transactions_returns_page_from_output_port() -> None:
+    use_case, transactions, _, _, unit_of_work = _build_use_case()
+    transactions.transactions[1] = _build_transaction_with_entries(transaction_id=1)
+    transactions.transactions[2] = _build_transaction_with_entries(transaction_id=2)
+    list_query = ListQuery(
+        offset=0,
+        limit=10,
+        sort=(SortTerm(field="created_at", direction=SortDirection.ASC),),
+    )
+
+    result = await use_case.list_transactions(list_query)
+
+    assert [transaction.id for transaction in result.items] == [1, 2]
+    assert result.total == 2
+    assert transactions.list_transaction_queries == [list_query]
+    assert unit_of_work.committed is False
 
 
 @pytest.mark.anyio

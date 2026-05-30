@@ -22,7 +22,7 @@ from src.core.domain.ledger_account import (
     UpdateLedgerAccountData,
 )
 from src.core.domain.tag import CreateTagData, Tag, UpdateTagData
-from src.core.domain.transaction import TransactionWithEntries
+from src.core.domain.transaction import Transaction, TransactionWithEntries
 from src.core.domain.user import (
     CreateUserData,
     UpdateUserData,
@@ -328,6 +328,17 @@ class _UserInputPortStub(UserInputPort):
 
 
 class _TransactionInputPortStub(TransactionInputPort):
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]:
+        return Page[Transaction](
+            items=[],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=0,
+        )
+
     async def get_transaction(
         self,
         transaction_id: int,
@@ -394,6 +405,7 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
     assert "/tag" in route_paths
     assert "/tag/list" in route_paths
     assert "/transaction" in route_paths
+    assert "/transaction/list" in route_paths
     assert "/transaction/post" in route_paths
     assert "/transaction/void" in route_paths
     assert "/user" in route_paths

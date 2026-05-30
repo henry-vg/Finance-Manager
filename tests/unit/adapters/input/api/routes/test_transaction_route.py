@@ -23,6 +23,7 @@ from src.core.domain.transaction import (
     TransactionWithEntries,
     UpdateTransactionData,
 )
+from src.core.shared import ListQuery, Page, SortDirection, SortTerm
 
 
 def _build_timestamp(day: int) -> datetime:
@@ -142,6 +143,26 @@ def _build_transaction_response_payload(
     }
 
 
+def _build_transaction_summary_response_payload(
+    *,
+    transaction_id: int = 1,
+    title: str = "Airline tickets",
+    description: str | None = "Family vacation purchase",
+    status: str = "pending",
+    effective_at: str = "2026-05-11T00:00:00.000Z",
+    transaction_updated_at: str = "2026-05-01T00:00:00.000Z",
+) -> dict[str, object]:
+    return {
+        "id": transaction_id,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": transaction_updated_at,
+        "effective_at": effective_at,
+        "title": title,
+        "description": description,
+        "status": status,
+    }
+
+
 def _build_transaction_with_entries(
     *,
     transaction_id: int = 1,
@@ -207,6 +228,7 @@ def _build_transaction_with_entries(
 
 class _TransactionInputPortStub:
     def __init__(self) -> None:
+        self.list_transaction_queries: list[ListQuery] = []
         self.transactions_by_id: dict[int, TransactionWithEntries] = {}
         self.create_calls: list[CreateTransactionData] = []
         self.update_calls: list[tuple[int, UpdateTransactionData]] = []
@@ -217,6 +239,26 @@ class _TransactionInputPortStub:
         self.post_error: Exception | None = None
         self.void_error: Exception | None = None
         self._next_transaction_id = 1
+
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]:
+        self.list_transaction_queries.append(list_query)
+        transactions = [
+            transaction_with_entries.transaction
+            for transaction_with_entries in self.transactions_by_id.values()
+        ]
+        transactions.sort(key=lambda transaction: (transaction.title, transaction.id))
+
+        return Page[Transaction](
+            items=transactions[
+                list_query.offset : list_query.offset + list_query.limit
+            ],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=len(transactions),
+        )
 
     async def get_transaction(
         self,
@@ -353,8 +395,61 @@ def _create_test_app(
     transaction_input_port: _TransactionInputPortStub,
 ) -> FastAPI:
     app = FastAPI()
-    app.include_router(create_router(transaction_input_port=transaction_input_port))
+    app.include_router(
+        create_router(
+            transaction_input_port=transaction_input_port,
+            pagination_default_limit=50,
+            pagination_max_limit=500,
+        ),
+    )
     return app
+
+
+@pytest.mark.anyio
+async def test_list_transactions_returns_paginated_response() -> None:
+    transaction_input_port_stub = _TransactionInputPortStub()
+    transaction_input_port_stub.transactions_by_id[1] = _build_transaction_with_entries(
+        transaction_id=1,
+        title="Airline tickets",
+    )
+    transaction_input_port_stub.transactions_by_id[2] = _build_transaction_with_entries(
+        transaction_id=2,
+        title="Zoo tickets",
+        status=TransactionStatus.POSTED,
+    )
+    app = _create_test_app(transaction_input_port_stub)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/transaction/list",
+            params={"offset": 0, "limit": 10, "sort": "title"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            _build_transaction_summary_response_payload(
+                transaction_id=1,
+                title="Airline tickets",
+            ),
+            _build_transaction_summary_response_payload(
+                transaction_id=2,
+                title="Zoo tickets",
+                status="posted",
+            ),
+        ],
+        "offset": 0,
+        "limit": 10,
+        "total": 2,
+    }
+    assert transaction_input_port_stub.list_transaction_queries == [
+        ListQuery(
+            offset=0,
+            limit=10,
+            sort=(SortTerm(field="title", direction=SortDirection.ASC),),
+        ),
+    ]
 
 
 @pytest.mark.anyio

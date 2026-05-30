@@ -1,9 +1,11 @@
 import pytest
 
 from tests.integration.fastapi.helpers.builders import (
+    build_page_response,
     build_posted_transaction_response,
     build_transaction_create_payload,
     build_transaction_response,
+    build_transaction_summary_response,
     build_transaction_update_payload,
     build_updated_transaction_response,
     build_voided_transaction_response,
@@ -25,6 +27,10 @@ async def test_transaction_create_get_and_update_flow_through_http_app(
             json=build_transaction_create_payload(),
         )
         created_id = create_response.json()["id"]
+        list_response = await client.get(
+            "/transaction/list",
+            params={"offset": 0, "limit": 10},
+        )
         get_response = await client.get("/transaction", params={"id": created_id})
         update_response = await client.put(
             "/transaction",
@@ -34,6 +40,10 @@ async def test_transaction_create_get_and_update_flow_through_http_app(
 
     assert create_response.status_code == 201
     assert create_response.json() == build_transaction_response()
+    assert list_response.status_code == 200
+    assert list_response.json() == build_page_response(
+        [build_transaction_summary_response(id=created_id)],
+    )
     assert get_response.status_code == 200
     assert get_response.json() == build_transaction_response(id=created_id)
     assert update_response.status_code == 200
@@ -55,7 +65,8 @@ async def test_transaction_post_flow_through_http_app(
         )
         created_id = create_response.json()["id"]
         post_response = await client.post(
-            "/transaction/post", params={"id": created_id}
+            "/transaction/post",
+            params={"id": created_id},
         )
 
     assert post_response.status_code == 200
@@ -77,7 +88,8 @@ async def test_transaction_void_flow_through_http_app(
         )
         created_id = create_response.json()["id"]
         void_response = await client.post(
-            "/transaction/void", params={"id": created_id}
+            "/transaction/void",
+            params={"id": created_id},
         )
 
     assert void_response.status_code == 200

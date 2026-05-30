@@ -354,6 +354,7 @@ class TagInputPortStub(TagInputPort):
 
 class TransactionInputPortStub(TransactionInputPort):
     def __init__(self) -> None:
+        self.list_transaction_queries: list[ListQuery] = []
         self.transactions_by_id: dict[int, TransactionWithEntries] = {}
         self.post_calls: list[int] = []
         self.void_calls: list[int] = []
@@ -363,6 +364,26 @@ class TransactionInputPortStub(TransactionInputPort):
         self.void_error: Exception | None = None
         self._next_transaction_id = 1
         self._next_entry_id = 100
+
+    async def list_transactions(
+        self,
+        list_query: ListQuery,
+    ) -> Page[Transaction]:
+        self.list_transaction_queries.append(list_query)
+        transactions = [
+            transaction_with_entries.transaction
+            for transaction_with_entries in self.transactions_by_id.values()
+        ]
+        transactions.sort(key=lambda transaction: transaction.id)
+
+        return Page[Transaction](
+            items=transactions[
+                list_query.offset : list_query.offset + list_query.limit
+            ],
+            offset=list_query.offset,
+            limit=list_query.limit,
+            total=len(transactions),
+        )
 
     def _build_entry_with_tags(
         self,

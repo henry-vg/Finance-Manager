@@ -11,6 +11,7 @@ from src.adapters.input.api.schemas.transaction_schema import (
     TransactionEntryWithTagsResponse,
     TransactionResponse,
     TransactionStatusSchema,
+    TransactionSummaryResponse,
 )
 
 
@@ -105,4 +106,28 @@ def test_transaction_response_serializes_nested_dates_datetimes_and_decimals() -
                 "entry_tags": [{"entry_id": 100, "tag_id": 10}],
             },
         ],
+    }
+
+
+def test_transaction_summary_response_serializes_timestamps() -> None:
+    response = TransactionSummaryResponse(
+        id=1,
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 2, tzinfo=UTC),
+        effective_at=datetime(2026, 5, 11, tzinfo=UTC),
+        title="Airline tickets",
+        description="Family vacation purchase",
+        status=TransactionStatusSchema.PENDING,
+    )
+
+    payload = json.loads(response.model_dump_json())
+
+    assert payload == {
+        "id": 1,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-02T00:00:00.000Z",
+        "effective_at": "2026-05-11T00:00:00.000Z",
+        "title": "Airline tickets",
+        "description": "Family vacation purchase",
+        "status": "pending",
     }

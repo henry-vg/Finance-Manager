@@ -231,6 +231,18 @@ def build_transaction_response(**overrides: Any) -> dict[str, Any]:
     } | overrides
 
 
+def build_transaction_summary_response(**overrides: Any) -> dict[str, Any]:
+    return {
+        "id": 1,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-01T00:00:00.000Z",
+        "effective_at": "2026-05-11T00:00:00.000Z",
+        "title": "Airline tickets",
+        "description": "Family vacation purchase",
+        "status": "pending",
+    } | overrides
+
+
 def build_updated_transaction_response(**overrides: Any) -> dict[str, Any]:
     return {
         "id": 1,

@@ -1,9 +1,21 @@
 import pytest
 
 from src.core.domain.transaction import (
+    TransactionSortableField,
     TransactionStatus,
     can_transition_transaction_status,
 )
+
+
+def test_transaction_sortable_field_exposes_supported_identifiers() -> None:
+    assert [field.name for field in TransactionSortableField] == [
+        "ID",
+        "CREATED_AT",
+        "UPDATED_AT",
+        "EFFECTIVE_AT",
+        "TITLE",
+        "STATUS",
+    ]
 
 
 @pytest.mark.parametrize(
