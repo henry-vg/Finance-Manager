@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from src.infra.postgres.aggregates.ledger_account.models.ledger_accounts import (
     LedgerAccountRecord,
 )
@@ -8,7 +10,7 @@ def test_ledger_account_record_declares_expected_table_name() -> None:
 
 
 def test_ledger_account_record_table_matches_expected_shape() -> None:
-    ledger_accounts_table = LedgerAccountRecord.__table__
+    ledger_accounts_table = cast(Any, LedgerAccountRecord).__table__
 
     assert set(ledger_accounts_table.columns.keys()) == {
         "id",

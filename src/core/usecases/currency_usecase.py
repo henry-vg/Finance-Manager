@@ -25,9 +25,9 @@ class CurrencyUseCase(CurrencyInputPort):
         self._unit_of_work_output_port_factory = unit_of_work_output_port_factory
 
     @staticmethod
-    def _normalize_currency_data(
-        data: CreateCurrencyData | UpdateCurrencyData,
-    ) -> dict[str, str | int]:
+    def _to_new_currency(
+        data: CreateCurrencyData,
+    ) -> NewCurrency:
         iso_code = data.iso_code.strip().upper()
         iso_numeric = data.iso_numeric.strip()
         name = data.name.strip()
@@ -36,13 +36,33 @@ class CurrencyUseCase(CurrencyInputPort):
         if not iso_code or not iso_numeric or not name or not symbol:
             raise CurrencyDataValidationError()
 
-        return {
-            "iso_code": iso_code,
-            "iso_numeric": iso_numeric,
-            "name": name,
-            "symbol": symbol,
-            "decimal_places": data.decimal_places,
-        }
+        return NewCurrency(
+            iso_code=iso_code,
+            iso_numeric=iso_numeric,
+            name=name,
+            symbol=symbol,
+            decimal_places=data.decimal_places,
+        )
+
+    @staticmethod
+    def _to_currency_changes(
+        data: UpdateCurrencyData,
+    ) -> CurrencyChanges:
+        iso_code = data.iso_code.strip().upper()
+        iso_numeric = data.iso_numeric.strip()
+        name = data.name.strip()
+        symbol = data.symbol.strip()
+
+        if not iso_code or not iso_numeric or not name or not symbol:
+            raise CurrencyDataValidationError()
+
+        return CurrencyChanges(
+            iso_code=iso_code,
+            iso_numeric=iso_numeric,
+            name=name,
+            symbol=symbol,
+            decimal_places=data.decimal_places,
+        )
 
     async def list_currencies(
         self,
@@ -69,18 +89,12 @@ class CurrencyUseCase(CurrencyInputPort):
         self,
         data: CreateCurrencyData,
     ) -> Currency:
-        normalized_data = self._normalize_currency_data(data)
+        new_currency = self._to_new_currency(data)
 
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             try:
                 created_currency = await unit_of_work.currencies.create_currency(
-                    new_currency=NewCurrency(
-                        iso_code=normalized_data["iso_code"],
-                        iso_numeric=normalized_data["iso_numeric"],
-                        name=normalized_data["name"],
-                        symbol=normalized_data["symbol"],
-                        decimal_places=normalized_data["decimal_places"],
-                    ),
+                    new_currency=new_currency,
                 )
             except CurrencyISOCodeConflictOutputPortError as exc:
                 raise CurrencyISOCodeConflictError() from exc
@@ -94,7 +108,7 @@ class CurrencyUseCase(CurrencyInputPort):
         currency_id: int,
         data: UpdateCurrencyData,
     ) -> Currency:
-        normalized_data = self._normalize_currency_data(data)
+        changes = self._to_currency_changes(data)
 
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             current_currency = await unit_of_work.currencies.get_currency_by_id(
@@ -107,13 +121,7 @@ class CurrencyUseCase(CurrencyInputPort):
             try:
                 updated_currency = await unit_of_work.currencies.update_currency(
                     currency_id=currency_id,
-                    changes=CurrencyChanges(
-                        iso_code=normalized_data["iso_code"],
-                        iso_numeric=normalized_data["iso_numeric"],
-                        name=normalized_data["name"],
-                        symbol=normalized_data["symbol"],
-                        decimal_places=normalized_data["decimal_places"],
-                    ),
+                    changes=changes,
                 )
             except CurrencyNotFoundOutputPortError as exc:
                 raise CurrencyNotFoundError() from exc

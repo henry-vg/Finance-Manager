@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from sqlalchemy import String
 
 from src.infra.postgres.aggregates.tag.models.tags import TagRecord
@@ -8,7 +10,7 @@ def test_tag_record_declares_expected_table_name() -> None:
 
 
 def test_tag_record_table_matches_expected_shape() -> None:
-    tags_table = TagRecord.__table__
+    tags_table = cast(Any, TagRecord).__table__
 
     assert set(tags_table.columns.keys()) == {
         "id",

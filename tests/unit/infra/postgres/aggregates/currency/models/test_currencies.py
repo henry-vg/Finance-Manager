@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from sqlalchemy import CheckConstraint, String, UniqueConstraint
 
 from src.infra.postgres.aggregates.currency.models.currencies import (
@@ -15,7 +17,7 @@ def test_currency_record_declares_expected_unique_constraint_name() -> None:
 
 
 def test_currency_record_table_matches_expected_shape_and_constraints() -> None:
-    currencies_table = CurrencyRecord.__table__
+    currencies_table = cast(Any, CurrencyRecord).__table__
     constraints_by_name = {
         constraint.name: constraint
         for constraint in currencies_table.constraints

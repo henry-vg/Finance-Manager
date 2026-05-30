@@ -198,13 +198,13 @@ class TransactionUseCase(TransactionInputPort):
 
                 ledger_account = ledger_accounts[entry.ledger_account_id]
 
-                has_closing_date = entry.statement_closing_date is not None
-                has_due_date = entry.statement_due_date is not None
+                closing_date = entry.statement_closing_date
+                due_date = entry.statement_due_date
 
-                if has_closing_date != has_due_date:
+                if (closing_date is None) != (due_date is None):
                     raise TransactionEntryStatementDatesMustBeProvidedTogetherError()
 
-                if not has_closing_date:
+                if closing_date is None or due_date is None:
                     continue
 
                 if not (
@@ -214,7 +214,7 @@ class TransactionUseCase(TransactionInputPort):
                 ):
                     raise TransactionEntryRequiresCreditCardLedgerAccountError()
 
-                if entry.statement_due_date <= entry.statement_closing_date:
+                if due_date <= closing_date:
                     raise TransactionEntryStatementDueDateMustBeAfterClosingDateError()
 
             created_transaction = await unit_of_work.transactions.create_transaction(
@@ -279,13 +279,13 @@ class TransactionUseCase(TransactionInputPort):
 
                 ledger_account = ledger_accounts[entry.ledger_account_id]
 
-                has_closing_date = entry.statement_closing_date is not None
-                has_due_date = entry.statement_due_date is not None
+                closing_date = entry.statement_closing_date
+                due_date = entry.statement_due_date
 
-                if has_closing_date != has_due_date:
+                if (closing_date is None) != (due_date is None):
                     raise TransactionEntryStatementDatesMustBeProvidedTogetherError()
 
-                if not has_closing_date:
+                if closing_date is None or due_date is None:
                     continue
 
                 if not (
@@ -295,7 +295,7 @@ class TransactionUseCase(TransactionInputPort):
                 ):
                     raise TransactionEntryRequiresCreditCardLedgerAccountError()
 
-                if entry.statement_due_date <= entry.statement_closing_date:
+                if due_date <= closing_date:
                     raise TransactionEntryStatementDueDateMustBeAfterClosingDateError()
 
             try:

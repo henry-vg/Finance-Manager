@@ -5,7 +5,6 @@ from fastapi import (
     APIRouter,
     Depends,
     Query,
-    Response,
     status,
 )
 
@@ -114,8 +113,7 @@ def create_router(
         description=(
             "Endpoint used to list persisted active users with offset/limit "
             "pagination and optional sort expressions such as `email` or "
-            "`-created_at`. Soft-deleted users are excluded, and the response "
-            "returns items together with offset, limit and total."
+            "`-created_at`. Soft-deleted users are excluded from results."
         ),
         responses={
             200: {
@@ -153,11 +151,7 @@ def create_router(
         path="",
         response_model=UserResponse,
         status_code=status.HTTP_200_OK,
-        description=(
-            "Endpoint used to retrieve a single user by its email address. "
-            "Returns the persisted user data, including audit timestamps, "
-            "without exposing password information."
-        ),
+        description="Endpoint used to retrieve a single user by its email address.",
         responses={
             200: {
                 "description": "The user was found and returned successfully.",
@@ -190,11 +184,7 @@ def create_router(
         path="",
         response_model=UserResponse,
         status_code=status.HTTP_201_CREATED,
-        description=(
-            "Endpoint used to create a new user. The password received in the "
-            "request is hashed before persistence, and the response returns the "
-            "created user without any password fields."
-        ),
+        description="Endpoint used to create a new user.",
         responses={
             201: {
                 "description": "The user was created successfully.",
@@ -231,9 +221,8 @@ def create_router(
         response_model=UserResponse,
         status_code=status.HTTP_200_OK,
         description=(
-            "Endpoint used to fully replace an existing user by its current email. "
-            "The update refreshes the audit timestamp and returns the updated "
-            "representation without password fields."
+            "Endpoint used to fully replace an existing user by its current "
+            "email address."
         ),
         responses={
             200: {
@@ -247,8 +236,7 @@ def create_router(
             },
             422: {
                 "description": (
-                    "- The request payload failed validation.\n"
-                    "- The query parameters failed validation."
+                    "The request body or query parameters failed validation."
                 ),
             },
         },
@@ -283,12 +271,7 @@ def create_router(
     @router.delete(
         path="",
         status_code=status.HTTP_204_NO_CONTENT,
-        description=(
-            "Endpoint used to delete an existing user by its email address. "
-            "By default the operation performs a soft delete; when "
-            "`hard_delete=true` is provided, the persisted row is removed "
-            "physically. On success, the operation returns no response body."
-        ),
+        description="Endpoint used to delete an existing user by its email address.",
         responses={
             204: {
                 "description": (
@@ -313,19 +296,14 @@ def create_router(
         hard_delete: bool = Query(
             False,
             description=(
-                "When true, removes the row physically. When false, performs "
-                "a soft delete. Defaults to false."
+                "When true, permanently deletes the user instead of soft deleting it."
             ),
         ),
-    ) -> Response:
+    ) -> None:
         with translate_exceptions_to_http(user_not_found_translation):
             await user_input_port.delete_user(
                 email=email,
                 hard_delete=hard_delete,
             )
-
-        return Response(
-            status_code=status.HTTP_204_NO_CONTENT,
-        )
 
     return router

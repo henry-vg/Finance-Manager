@@ -236,10 +236,14 @@ def create_router(
             ),
         )
     )
-    transaction_entry_requires_credit_card_ledger_account_translation = HTTPExceptionTranslation(
-        exception_type=TransactionEntryRequiresCreditCardLedgerAccountError,
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail="Transaction statement entries require a credit card ledger account.",
+    transaction_entry_requires_credit_card_ledger_account_translation = (
+        HTTPExceptionTranslation(
+            exception_type=TransactionEntryRequiresCreditCardLedgerAccountError,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Transaction statement entries require a credit card ledger account."
+            ),
+        )
     )
     transaction_entry_statement_due_date_after_closing_date_translation = (
         HTTPExceptionTranslation(
@@ -344,7 +348,9 @@ def create_router(
         path="",
         response_model=TransactionResponse,
         status_code=status.HTTP_201_CREATED,
-        description="Endpoint used to create a new transaction with subordinate entries.",
+        description=(
+            "Endpoint used to create a new transaction with subordinate entries."
+        ),
         responses={
             201: {
                 "description": "The transaction was created successfully.",
@@ -378,7 +384,9 @@ def create_router(
         path="",
         response_model=TransactionResponse,
         status_code=status.HTTP_200_OK,
-        description="Endpoint used to fully replace an existing pending transaction by its id.",
+        description=(
+            "Endpoint used to fully replace an existing pending transaction by its id."
+        ),
         responses={
             200: {
                 "description": "The transaction was updated successfully.",
@@ -387,11 +395,13 @@ def create_router(
                 "description": "No transaction exists for the provided id.",
             },
             409: {
-                "description": "The current transaction state does not allow the requested update.",
+                "description": (
+                    "The current transaction state does not allow the requested update."
+                ),
             },
             422: {
                 "description": (
-                    "- The request payload or query parameters failed validation.\n"
+                    "- The request body or query parameters failed validation.\n"
                     "- The transaction violated one or more business rules."
                 ),
             },

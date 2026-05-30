@@ -256,7 +256,7 @@ def create_router(
             },
             422: {
                 "description": (
-                    "- The request payload or query parameters failed validation.\n"
+                    "- The request body or query parameters failed validation.\n"
                     "- The selected instrument kind is not allowed for the "
                     "provided ledger account type."
                 ),
@@ -299,7 +299,8 @@ def create_router(
             204: {
                 "description": (
                     "- The ledger account was soft-deleted when `hard_delete=false`.\n"
-                    "- The ledger account was permanently deleted when `hard_delete=true`."
+                    "- The ledger account was permanently deleted when "
+                    "`hard_delete=true`."
                 ),
             },
             404: {

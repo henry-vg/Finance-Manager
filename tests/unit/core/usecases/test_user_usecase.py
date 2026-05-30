@@ -11,9 +11,11 @@ from src.core.domain.user import (
     UserEmailConflictError,
     UserNotFoundError,
 )
+from src.core.ports.output.currency_output_port import CurrencyOutputPort
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
 from src.core.ports.output.password_hasher_output_port import PasswordHasherOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
+from src.core.ports.output.transaction_output_port import TransactionOutputPort
 from src.core.ports.output.unit_of_work_output_port import (
     UnitOfWorkOutputPort,
     UnitOfWorkOutputPortFactory,
@@ -96,6 +98,8 @@ class _UserOutputPortStub(UserOutputPort):
         self.updated_users: list[tuple[int, UserChanges]] = []
         self.create_error: Exception | None = None
         self.update_error: Exception | None = None
+        self.soft_delete_error: Exception | None = None
+        self.hard_delete_error: Exception | None = None
         self._next_user_id = 1
 
     async def list_users(
@@ -222,6 +226,9 @@ class _UserOutputPortStub(UserOutputPort):
         self,
         user_id: int,
     ) -> None:
+        if self.soft_delete_error is not None:
+            raise self.soft_delete_error
+
         if user_id not in self.users_by_id:
             raise UserNotFoundOutputPortError()
 
@@ -231,6 +238,9 @@ class _UserOutputPortStub(UserOutputPort):
         self,
         user_id: int,
     ) -> None:
+        if self.hard_delete_error is not None:
+            raise self.hard_delete_error
+
         if user_id not in self.users_by_id:
             raise UserNotFoundOutputPortError()
 
@@ -320,6 +330,14 @@ class _UnitOfWorkOutputPortStub(UnitOfWorkOutputPort):
     @property
     def tags(self) -> TagOutputPort:
         return self._tag_output_port
+
+    @property
+    def currencies(self) -> CurrencyOutputPort:
+        raise RuntimeError("currencies output port is unused in user tests")
+
+    @property
+    def transactions(self) -> TransactionOutputPort:
+        raise RuntimeError("transactions output port is unused in user tests")
 
     @property
     def users(self) -> UserOutputPort:
@@ -861,12 +879,7 @@ async def test_delete_user_translates_output_port_not_found_on_soft_delete() -> 
         created_at=_build_timestamp(year=2026, month=5, day=1),
         updated_at=_build_timestamp(year=2026, month=5, day=2),
     )
-
-    async def raising_soft_delete_user(user_id: int) -> None:
-        del user_id
-        raise UserNotFoundOutputPortError()
-
-    user_output_port_stub.soft_delete_user = raising_soft_delete_user
+    user_output_port_stub.soft_delete_error = UserNotFoundOutputPortError()
     use_case, _ = _build_user_usecase(user_output_port_stub)
 
     with pytest.raises(UserNotFoundError):
@@ -887,12 +900,7 @@ async def test_delete_user_translates_output_port_not_found_on_hard_delete() -> 
         updated_at=_build_timestamp(year=2026, month=5, day=2),
     )
     user_output_port_stub.soft_deleted_user_ids.append(1)
-
-    async def raising_hard_delete_user(user_id: int) -> None:
-        del user_id
-        raise UserNotFoundOutputPortError()
-
-    user_output_port_stub.hard_delete_user = raising_hard_delete_user
+    user_output_port_stub.hard_delete_error = UserNotFoundOutputPortError()
     use_case, _ = _build_user_usecase(user_output_port_stub)
 
     with pytest.raises(UserNotFoundError):

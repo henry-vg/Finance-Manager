@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 from src.core.domain.healthz import HealthzStatus
@@ -32,7 +34,7 @@ class _EngineStub:
 
 @pytest.mark.anyio
 async def test_get_database_status_returns_ok_when_query_succeeds() -> None:
-    adapter = SQLAlchemyPostgresHealthAdapter(_EngineStub())
+    adapter = SQLAlchemyPostgresHealthAdapter(cast(Any, _EngineStub()))
 
     status = await adapter.get_database_status()
 
@@ -41,7 +43,9 @@ async def test_get_database_status_returns_ok_when_query_succeeds() -> None:
 
 @pytest.mark.anyio
 async def test_get_database_status_returns_not_ok_when_query_fails() -> None:
-    adapter = SQLAlchemyPostgresHealthAdapter(_EngineStub(should_fail=True))
+    adapter = SQLAlchemyPostgresHealthAdapter(
+        cast(Any, _EngineStub(should_fail=True)),
+    )
 
     status = await adapter.get_database_status()
 

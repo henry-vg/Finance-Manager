@@ -538,9 +538,7 @@ async def test_delete_ledger_account_raises_when_ledger_account_does_not_exist()
 
 
 @pytest.mark.anyio
-async def test_delete_ledger_account_translates_output_port_not_found_on_hard_delete() -> (
-    None
-):
+async def test_delete_ledger_account_translates_not_found_on_hard_delete() -> None:
     ledger_accounts = _LedgerAccountOutputPortStub()
     created = await ledger_accounts.create_ledger_account(
         NewLedgerAccount(

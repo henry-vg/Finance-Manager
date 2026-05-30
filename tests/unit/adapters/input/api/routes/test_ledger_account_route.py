@@ -370,9 +370,9 @@ async def test_create_ledger_account_returns_422_for_invalid_instrument_kind() -
         )
 
     assert response.status_code == 422
-    assert (
-        response.json()["detail"]
-        == "Ledger account instrument kind is not allowed for the provided ledger account type."
+    assert response.json()["detail"] == (
+        "Ledger account instrument kind is not allowed for the provided "
+        "ledger account type."
     )
 
 
@@ -425,9 +425,9 @@ async def test_update_ledger_account_returns_422_for_invalid_instrument_kind() -
         )
 
     assert response.status_code == 422
-    assert (
-        response.json()["detail"]
-        == "Ledger account instrument kind is not allowed for the provided ledger account type."
+    assert response.json()["detail"] == (
+        "Ledger account instrument kind is not allowed for the provided "
+        "ledger account type."
     )
 
 

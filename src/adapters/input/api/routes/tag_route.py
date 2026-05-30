@@ -202,8 +202,7 @@ def create_router(
             },
             422: {
                 "description": (
-                    "- The request payload failed validation.\n"
-                    "- The query parameters failed validation."
+                    "The request body or query parameters failed validation."
                 ),
             },
         },

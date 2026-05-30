@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from sqlalchemy import Date, String, UniqueConstraint
 
 from src.infra.postgres.aggregates.user.models.users import (
@@ -11,7 +13,7 @@ def test_user_record_declares_expected_table_name() -> None:
 
 
 def test_user_record_table_matches_expected_shape_and_constraints() -> None:
-    users_table = UserRecord.__table__
+    users_table = cast(Any, UserRecord).__table__
     constraints_by_name = {
         constraint.name: constraint
         for constraint in users_table.constraints

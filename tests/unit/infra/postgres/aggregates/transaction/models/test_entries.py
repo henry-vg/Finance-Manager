@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from sqlalchemy import Numeric
 
 from src.infra.postgres.aggregates.transaction.models.entries import EntryRecord
@@ -8,7 +10,7 @@ def test_entry_record_declares_expected_table_name() -> None:
 
 
 def test_entry_record_table_matches_expected_shape() -> None:
-    entries_table = EntryRecord.__table__
+    entries_table = cast(Any, EntryRecord).__table__
     transaction_fk = next(iter(entries_table.c.transaction_id.foreign_keys))
     ledger_account_fk = next(iter(entries_table.c.ledger_account_id.foreign_keys))
     currency_fk = next(iter(entries_table.c.currency_id.foreign_keys))

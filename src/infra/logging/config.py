@@ -251,7 +251,8 @@ def setup_logging(settings: Settings) -> None:
             return
         logger = logging.getLogger("exception.unhandled")
         logger.critical(
-            "UNHANDLED EXCEPTION", exc_info=(exc_type, exc_value, exc_traceback),
+            "UNHANDLED EXCEPTION",
+            exc_info=(exc_type, exc_value, exc_traceback),
         )
 
     if settings.log.unhandled_exceptions:

@@ -1,3 +1,5 @@
+from typing import cast
+
 from sqlalchemy.exc import IntegrityError
 
 from src.infra.postgres.integrity import get_constraint_name, is_unique_violation
@@ -53,7 +55,7 @@ def test_get_constraint_name_falls_back_to_diag() -> None:
 
 
 def test_get_constraint_name_returns_none_when_orig_is_missing() -> None:
-    exc = IntegrityError("statement", {}, None)
+    exc = IntegrityError("statement", {}, cast(BaseException, None))
 
     assert get_constraint_name(exc) is None
 
@@ -92,7 +94,7 @@ def test_is_unique_violation_rejects_other_constraints() -> None:
 
 
 def test_is_unique_violation_rejects_missing_orig_and_non_unique_sqlstate() -> None:
-    missing_orig_exc = IntegrityError("statement", {}, None)
+    missing_orig_exc = IntegrityError("statement", {}, cast(BaseException, None))
     other_sqlstate_exc = _build_integrity_error(
         _FakeDatabaseError(
             sqlstate="23503",

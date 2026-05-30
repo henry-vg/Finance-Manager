@@ -165,7 +165,7 @@ async def test_soft_delete_ledger_account_hides_ledger_account_from_active_reads
 
 
 @pytest.mark.anyio
-async def test_soft_delete_ledger_account_raises_not_found_when_record_was_already_deleted(
+async def test_soft_delete_ledger_account_raises_not_found_for_deleted_record(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with postgres_session_factory() as session:

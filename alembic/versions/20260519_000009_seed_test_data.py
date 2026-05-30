@@ -7,6 +7,7 @@ Create Date: 2026-05-19 00:00:10
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import cast
 
 import sqlalchemy as sa
 from alembic import op
@@ -475,6 +476,7 @@ def _build_entries() -> list[dict[str, object]]:
         transaction_id = TRANSACTION_ID_START + offset
         positive_entry_id = ENTRY_ID_START + (offset * 2)
         negative_entry_id = positive_entry_id + 1
+        amount = cast(Decimal, transaction_spec["amount"])
 
         entry_rows.append(
             {
@@ -482,7 +484,7 @@ def _build_entries() -> list[dict[str, object]]:
                 "transaction_id": transaction_id,
                 "ledger_account_id": transaction_spec["positive_account_id"],
                 "currency_id": transaction_spec["currency_id"],
-                "amount": transaction_spec["amount"],
+                "amount": amount,
                 "statement_closing_date": None,
                 "statement_due_date": None,
             },
@@ -493,7 +495,7 @@ def _build_entries() -> list[dict[str, object]]:
                 "transaction_id": transaction_id,
                 "ledger_account_id": transaction_spec["negative_account_id"],
                 "currency_id": transaction_spec["currency_id"],
-                "amount": -transaction_spec["amount"],
+                "amount": -amount,
                 "statement_closing_date": transaction_spec["statement_closing_date"],
                 "statement_due_date": transaction_spec["statement_due_date"],
             },
@@ -541,7 +543,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
+    bind = op.get_bind()
+
+    bind.execute(
         sa.text(
             "DELETE FROM entry_tags WHERE entry_id BETWEEN :start_id AND :end_id",
         ),
@@ -550,14 +554,14 @@ def downgrade() -> None:
             "end_id": ENTRY_ID_START + 39,
         },
     )
-    op.execute(
+    bind.execute(
         sa.text("DELETE FROM entries WHERE id BETWEEN :start_id AND :end_id"),
         {
             "start_id": ENTRY_ID_START,
             "end_id": ENTRY_ID_START + 39,
         },
     )
-    op.execute(
+    bind.execute(
         sa.text(
             "DELETE FROM transactions WHERE id BETWEEN :start_id AND :end_id",
         ),
@@ -566,7 +570,7 @@ def downgrade() -> None:
             "end_id": TRANSACTION_ID_START + 19,
         },
     )
-    op.execute(
+    bind.execute(
         sa.text(
             "DELETE FROM ledger_accounts WHERE id BETWEEN :start_id AND :end_id",
         ),
@@ -575,14 +579,14 @@ def downgrade() -> None:
             "end_id": LEDGER_ACCOUNT_ID_START + 19,
         },
     )
-    op.execute(
+    bind.execute(
         sa.text("DELETE FROM tags WHERE id BETWEEN :start_id AND :end_id"),
         {
             "start_id": TAG_ID_START,
             "end_id": TAG_ID_START + 19,
         },
     )
-    op.execute(
+    bind.execute(
         sa.text("DELETE FROM users WHERE id BETWEEN :start_id AND :end_id"),
         {
             "start_id": USER_ID_START,

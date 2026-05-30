@@ -93,7 +93,7 @@ async def _prepare_database(
             await connection.run_sync(postgres_metadata.drop_all)
             if trigger_specs:
                 await connection.execute(
-                    text("DROP FUNCTION IF EXISTS set_updated_at()")
+                    text("DROP FUNCTION IF EXISTS set_updated_at()"),
                 )
         await dispose_postgres_engine(engine)
 

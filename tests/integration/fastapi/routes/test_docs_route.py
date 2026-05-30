@@ -70,7 +70,7 @@ async def test_get_openapi_documents_transaction_write_errors_as_markdown_lists(
     assert openapi_schema["paths"]["/transaction"]["put"]["responses"]["422"][
         "description"
     ] == (
-        "- The request payload or query parameters failed validation.\n"
+        "- The request body or query parameters failed validation.\n"
         "- The transaction violated one or more business rules."
     )
 
@@ -90,11 +90,25 @@ async def test_get_openapi_documents_multi_outcome_responses_as_markdown_lists(
         "description"
     ] == (
         "- The request body failed validation.\n"
-        "- The selected instrument kind is not allowed for the provided ledger account type."
+        "- The selected instrument kind is not allowed for the provided ledger "
+        "account type."
+    )
+    assert openapi_schema["paths"]["/currency"]["post"]["responses"]["422"][
+        "description"
+    ] == ("- The request body failed validation.\n- The currency data is invalid.")
+    assert openapi_schema["paths"]["/currency"]["put"]["responses"]["422"][
+        "description"
+    ] == (
+        "- The request body or query parameters failed validation.\n"
+        "- The currency data is invalid."
     )
     assert openapi_schema["paths"]["/user"]["delete"]["responses"]["204"][
         "description"
     ] == (
         "- The user was soft-deleted when `hard_delete=false`.\n"
         "- The user was permanently deleted when `hard_delete=true`."
+    )
+    assert (
+        openapi_schema["paths"]["/currency"]["get"]["parameters"][0]["description"]
+        == "Identifier of the currency to retrieve."
     )

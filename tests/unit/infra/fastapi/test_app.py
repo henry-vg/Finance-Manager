@@ -1,6 +1,14 @@
+from typing import cast
+
 import pytest
 from fastapi import APIRouter
 
+from src.core.ports.input.currency_input_port import CurrencyInputPort
+from src.core.ports.input.healthz_input_port import HealthzInputPort
+from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
+from src.core.ports.input.tag_input_port import TagInputPort
+from src.core.ports.input.transaction_input_port import TransactionInputPort
+from src.core.ports.input.user_input_port import UserInputPort
 from src.infra.fastapi.app import create_http_app
 from src.infra.fastapi.tags import openapi_tags
 from src.infra.settings import load_settings
@@ -27,12 +35,12 @@ def test_create_http_app_configures_router_and_openapi_tags(monkeypatch) -> None
     monkeypatch.setattr(app_module, "create_api_router", fake_create_api_router)
 
     settings = load_settings()
-    healthz_input_port = object()
-    currency_input_port = object()
-    ledger_account_input_port = object()
-    tag_input_port = object()
-    transaction_input_port = object()
-    user_input_port = object()
+    healthz_input_port = cast(HealthzInputPort, object())
+    currency_input_port = cast(CurrencyInputPort, object())
+    ledger_account_input_port = cast(LedgerAccountInputPort, object())
+    tag_input_port = cast(TagInputPort, object())
+    transaction_input_port = cast(TransactionInputPort, object())
+    user_input_port = cast(UserInputPort, object())
 
     app = create_http_app(
         settings=settings,
@@ -53,7 +61,7 @@ def test_create_http_app_configures_router_and_openapi_tags(monkeypatch) -> None
         == settings.fastapi.pagination_default_limit
     )
     assert captured["pagination_max_limit"] == settings.fastapi.pagination_max_limit
-    assert any(route.path == "/probe" for route in app.routes)
+    assert any(getattr(route, "path", None) == "/probe" for route in app.routes)
 
 
 @pytest.mark.anyio
@@ -70,12 +78,12 @@ async def test_create_http_app_uses_default_lifespan_context(monkeypatch) -> Non
     settings = load_settings()
     app = create_http_app(
         settings=settings,
-        healthz_input_port=object(),
-        currency_input_port=object(),
-        ledger_account_input_port=object(),
-        tag_input_port=object(),
-        transaction_input_port=object(),
-        user_input_port=object(),
+        healthz_input_port=cast(HealthzInputPort, object()),
+        currency_input_port=cast(CurrencyInputPort, object()),
+        ledger_account_input_port=cast(LedgerAccountInputPort, object()),
+        tag_input_port=cast(TagInputPort, object()),
+        transaction_input_port=cast(TransactionInputPort, object()),
+        user_input_port=cast(UserInputPort, object()),
     )
 
     async with app.router.lifespan_context(app):

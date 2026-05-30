@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 import httpx
@@ -24,7 +24,7 @@ from tests.integration.fastapi.helpers.stubs import (
 
 
 @pytest.fixture
-def fastapi_app_builder():
+def fastapi_app_builder() -> Callable[..., FastAPI]:
     def build_app(
         *,
         settings: Settings | None = None,
@@ -54,7 +54,7 @@ def fastapi_app_builder():
 
 @pytest.fixture
 def fastapi_app(
-    fastapi_app_builder,
+    fastapi_app_builder: Callable[..., FastAPI],
 ) -> FastAPI:
     return fastapi_app_builder()
 

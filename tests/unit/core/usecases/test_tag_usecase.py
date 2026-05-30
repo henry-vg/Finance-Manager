@@ -10,6 +10,7 @@ from src.core.domain.tag import (
     TagNotFoundError,
     UpdateTagData,
 )
+from src.core.ports.output.currency_output_port import CurrencyOutputPort
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
 from src.core.ports.output.tag_output_port import (
     TagNotFoundOutputPortError,
@@ -106,6 +107,10 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
     @property
     def tags(self) -> TagOutputPort:
         return self._tags
+
+    @property
+    def currencies(self) -> CurrencyOutputPort:
+        raise RuntimeError("currencies output port is unused in tag tests")
 
     @property
     def ledger_accounts(self) -> LedgerAccountOutputPort:

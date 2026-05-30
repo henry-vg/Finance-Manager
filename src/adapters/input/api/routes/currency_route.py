@@ -157,7 +157,11 @@ def create_router(
         summary="Get Currency",
     )
     async def get_currency(
-        id: int = Query(..., ge=1, description="Identifier of the currency."),
+        id: int = Query(
+            ...,
+            ge=1,
+            description="Identifier of the currency to retrieve.",
+        ),
     ) -> CurrencyResponse:
         with translate_exceptions_to_http(currency_not_found_translation):
             currency = await currency_input_port.get_currency(currency_id=id)
@@ -177,7 +181,10 @@ def create_router(
                 "description": "A currency with the same ISO code already exists.",
             },
             422: {
-                "description": "The request body failed validation.",
+                "description": (
+                    "- The request body failed validation.\n"
+                    "- The currency data is invalid."
+                ),
             },
         },
         summary="Create Currency",
@@ -218,8 +225,8 @@ def create_router(
             },
             422: {
                 "description": (
-                    "- The request payload failed validation.\n"
-                    "- The query parameters failed validation."
+                    "- The request body or query parameters failed validation.\n"
+                    "- The currency data is invalid."
                 ),
             },
         },
@@ -227,7 +234,11 @@ def create_router(
     )
     async def update_currency(
         payload: UpdateCurrencyRequest,
-        id: int = Query(..., ge=1, description="Identifier of the currency."),
+        id: int = Query(
+            ...,
+            ge=1,
+            description="Identifier of the currency to update.",
+        ),
     ) -> CurrencyResponse:
         with translate_exceptions_to_http(
             currency_data_validation_translation,
@@ -268,7 +279,11 @@ def create_router(
         summary="Delete Currency",
     )
     async def delete_currency(
-        id: int = Query(..., ge=1, description="Identifier of the currency."),
+        id: int = Query(
+            ...,
+            ge=1,
+            description="Identifier of the currency to delete.",
+        ),
         hard_delete: bool = Query(
             False,
             description=(

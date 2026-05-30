@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from src.infra.postgres.aggregates.transaction.models.entry_tags import EntryTagRecord
 
 
@@ -6,7 +8,7 @@ def test_entry_tag_record_declares_expected_table_name() -> None:
 
 
 def test_entry_tag_record_table_matches_expected_shape() -> None:
-    entry_tags_table = EntryTagRecord.__table__
+    entry_tags_table = cast(Any, EntryTagRecord).__table__
     entry_fk = next(iter(entry_tags_table.c.entry_id.foreign_keys))
     tag_fk = next(iter(entry_tags_table.c.tag_id.foreign_keys))
 

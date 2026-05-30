@@ -306,9 +306,43 @@ class _CurrencyOutputPortStub(CurrencyOutputPort):
         }
         self.queried_currency_ids: list[int] = []
 
+    async def list_currencies(self, list_query):
+        del list_query
+        raise RuntimeError("list_currencies is unused in transaction tests")
+
     async def get_currency_by_id(self, currency_id: int) -> Currency | None:
         self.queried_currency_ids.append(currency_id)
         return self.currencies_by_id.get(currency_id)
+
+    async def get_currency_by_id_including_deleted(
+        self,
+        currency_id: int,
+    ) -> Currency | None:
+        return self.currencies_by_id.get(currency_id)
+
+    async def get_currency_by_iso_code(self, iso_code: str) -> Currency | None:
+        for currency in self.currencies_by_id.values():
+            if currency.iso_code == iso_code:
+                return currency
+
+        return None
+
+    async def create_currency(self, new_currency):
+        del new_currency
+        raise RuntimeError("create_currency is unused in transaction tests")
+
+    async def update_currency(self, currency_id, changes):
+        del currency_id
+        del changes
+        raise RuntimeError("update_currency is unused in transaction tests")
+
+    async def soft_delete_currency(self, currency_id):
+        del currency_id
+        raise RuntimeError("soft_delete_currency is unused in transaction tests")
+
+    async def hard_delete_currency(self, currency_id):
+        del currency_id
+        raise RuntimeError("hard_delete_currency is unused in transaction tests")
 
 
 class _LedgerAccountOutputPortStub(LedgerAccountOutputPort):
@@ -385,7 +419,7 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
         self.committed = False
 
     @property
-    def currencies(self) -> CurrencyOutputPort:
+    def currencies(self) -> _CurrencyOutputPortStub:
         return self._currencies
 
     @property

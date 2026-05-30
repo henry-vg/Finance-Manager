@@ -221,7 +221,7 @@ def test_setup_logging_configures_console_json_formatter_when_requested(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured_config: dict[str, Any] = {}
-    fake_pythonjsonlogger = ModuleType("pythonjsonlogger")
+    fake_pythonjsonlogger = cast(Any, ModuleType("pythonjsonlogger"))
     fake_pythonjsonlogger.jsonlogger = object()
 
     monkeypatch.setitem(
@@ -251,7 +251,7 @@ def test_setup_logging_prefers_json_over_colors_when_both_are_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured_config: dict[str, Any] = {}
-    fake_pythonjsonlogger = ModuleType("pythonjsonlogger")
+    fake_pythonjsonlogger = cast(Any, ModuleType("pythonjsonlogger"))
     fake_pythonjsonlogger.jsonlogger = object()
 
     monkeypatch.setitem(
@@ -281,7 +281,7 @@ def test_setup_logging_configures_console_color_formatter_when_requested(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured_config: dict[str, Any] = {}
-    fake_colorlog = ModuleType("colorlog")
+    fake_colorlog = cast(Any, ModuleType("colorlog"))
     fake_colorlog.ColoredFormatter = object()
 
     monkeypatch.setitem(logging_config.sys.modules, "colorlog", fake_colorlog)

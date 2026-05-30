@@ -82,9 +82,7 @@ async def test_get_currency_by_id_returns_domain_currency_when_record_exists() -
 
 
 @pytest.mark.anyio
-async def test_get_currency_by_iso_code_returns_domain_currency_when_record_exists() -> (
-    None
-):
+async def test_get_currency_by_iso_code_returns_currency_when_record_exists() -> None:
     repository = SQLAlchemyCurrencyOutputAdapter(
         cast(
             Any,

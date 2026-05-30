@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from src.infra.postgres.aggregates.transaction.models.transactions import (
     TransactionRecord,
 )
@@ -8,7 +10,7 @@ def test_transaction_record_declares_expected_table_name() -> None:
 
 
 def test_transaction_record_table_matches_expected_shape() -> None:
-    transactions_table = TransactionRecord.__table__
+    transactions_table = cast(Any, TransactionRecord).__table__
 
     assert set(transactions_table.columns.keys()) == {
         "id",
