@@ -1,15 +1,15 @@
 """create entries table
 
-Revision ID: 20260511_000007
-Revises: 20260511_000006
-Create Date: 2026-05-11 00:00:08
+Revision ID: 20260519_000007
+Revises: 20260518_000006
+Create Date: 2026-05-19 00:00:08
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260511_000007"
-down_revision = "20260511_000006"
+revision = "20260519_000007"
+down_revision = "20260518_000006"
 branch_labels = None
 depends_on = None
 
@@ -51,6 +51,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["ledger_account_id"],
             ["ledger_accounts.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["currency_id"],
+            ["currencies.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
     )

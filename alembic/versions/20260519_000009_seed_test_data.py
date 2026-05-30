@@ -1,8 +1,8 @@
 """seed test data
 
-Revision ID: 20260511_000009
-Revises: 20260511_000008
-Create Date: 2026-05-11 00:00:10
+Revision ID: 20260519_000009
+Revises: 20260519_000008
+Create Date: 2026-05-19 00:00:10
 """
 
 from datetime import UTC, date, datetime
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "20260511_000009"
-down_revision = "20260511_000008"
+revision = "20260519_000009"
+down_revision = "20260519_000008"
 branch_labels = None
 depends_on = None
 
@@ -59,6 +59,16 @@ users_table = sa.table(
     sa.column("birth_date", sa.Date()),
 )
 
+currencies_table = sa.table(
+    "currencies",
+    sa.column("id", sa.Integer()),
+    sa.column("iso_code", sa.String(length=3)),
+    sa.column("iso_numeric", sa.String(length=3)),
+    sa.column("name", sa.String(length=255)),
+    sa.column("symbol", sa.String(length=16)),
+    sa.column("decimal_places", sa.Integer()),
+)
+
 tags_table = sa.table(
     "tags",
     sa.column("id", sa.Integer()),
@@ -98,6 +108,35 @@ entry_tags_table = sa.table(
     sa.column("entry_id", sa.Integer()),
     sa.column("tag_id", sa.Integer()),
 )
+
+
+def _build_currencies() -> list[dict[str, object]]:
+    return [
+        {
+            "id": 1,
+            "iso_code": "BRL",
+            "iso_numeric": "986",
+            "name": "Brazilian Real",
+            "symbol": "R$",
+            "decimal_places": 2,
+        },
+        {
+            "id": 2,
+            "iso_code": "USD",
+            "iso_numeric": "840",
+            "name": "United States Dollar",
+            "symbol": "$",
+            "decimal_places": 2,
+        },
+        {
+            "id": 3,
+            "iso_code": "EUR",
+            "iso_numeric": "978",
+            "name": "Euro",
+            "symbol": "€",
+            "decimal_places": 2,
+        },
+    ]
 
 
 def _build_users() -> list[dict[str, object]]:
@@ -485,6 +524,7 @@ def _sync_identity_sequence(table_name: str) -> None:
 
 
 def upgrade() -> None:
+    op.bulk_insert(currencies_table, _build_currencies())
     op.bulk_insert(users_table, _build_users())
     op.bulk_insert(tags_table, _build_tags())
     op.bulk_insert(ledger_accounts_table, _build_ledger_accounts())
@@ -492,6 +532,7 @@ def upgrade() -> None:
     op.bulk_insert(entries_table, _build_entries())
     op.bulk_insert(entry_tags_table, _build_entry_tags())
 
+    _sync_identity_sequence("currencies")
     _sync_identity_sequence("users")
     _sync_identity_sequence("tags")
     _sync_identity_sequence("ledger_accounts")
@@ -548,7 +589,13 @@ def downgrade() -> None:
             "end_id": USER_ID_START + 19,
         },
     )
+    op.execute(
+        sa.text(
+            "DELETE FROM currencies WHERE iso_code IN ('BRL', 'USD', 'EUR')",
+        ),
+    )
 
+    _sync_identity_sequence("currencies")
     _sync_identity_sequence("users")
     _sync_identity_sequence("tags")
     _sync_identity_sequence("ledger_accounts")

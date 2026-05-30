@@ -1,15 +1,15 @@
 """create entry tags table
 
-Revision ID: 20260511_000008
-Revises: 20260511_000007
-Create Date: 2026-05-11 00:00:09
+Revision ID: 20260519_000008
+Revises: 20260519_000007
+Create Date: 2026-05-19 00:00:09
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260511_000008"
-down_revision = "20260511_000007"
+revision = "20260519_000008"
+down_revision = "20260519_000007"
 branch_labels = None
 depends_on = None
 

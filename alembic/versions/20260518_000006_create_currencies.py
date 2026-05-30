@@ -1,15 +1,15 @@
 """create currencies table
 
-Revision ID: 20260518_000010
-Revises: 20260511_000009
-Create Date: 2026-05-18 00:00:10
+Revision ID: 20260518_000006
+Revises: 20260511_000005
+Create Date: 2026-05-18 00:00:07
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260518_000010"
-down_revision = "20260511_000009"
+revision = "20260518_000006"
+down_revision = "20260511_000005"
 branch_labels = None
 depends_on = None
 

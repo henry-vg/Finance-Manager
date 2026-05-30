@@ -35,8 +35,31 @@ def upgrade() -> None:
             server_default=sa.text("TIMEZONE('UTC', CURRENT_TIMESTAMP)"),
             nullable=False,
         ),
+        sa.Column(
+            "is_deleted",
+            sa.Boolean(),
+            server_default=sa.text("FALSE"),
+            nullable=False,
+        ),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email", name="uq_users_email"),
+    )
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION set_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
+
+            IF NEW.is_deleted IS TRUE AND OLD.is_deleted IS FALSE THEN
+                NEW.deleted_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
+            END IF;
+
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """,
     )
     op.execute(
         """
@@ -51,3 +74,14 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS set_users_updated_at ON users")
     op.drop_table("users")
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION set_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = TIMEZONE('UTC', CURRENT_TIMESTAMP);
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """,
+    )
