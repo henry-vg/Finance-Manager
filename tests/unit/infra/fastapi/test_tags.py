@@ -7,5 +7,6 @@ def test_openapi_tags_include_all_public_api_groups() -> None:
         "Currency",
         "LedgerAccount",
         "Tag",
+        "Transaction",
         "User",
     ]

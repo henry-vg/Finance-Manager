@@ -31,6 +31,7 @@ def test_create_http_app_configures_router_and_openapi_tags(monkeypatch) -> None
     currency_input_port = object()
     ledger_account_input_port = object()
     tag_input_port = object()
+    transaction_input_port = object()
     user_input_port = object()
 
     app = create_http_app(
@@ -39,12 +40,14 @@ def test_create_http_app_configures_router_and_openapi_tags(monkeypatch) -> None
         currency_input_port=currency_input_port,
         ledger_account_input_port=ledger_account_input_port,
         tag_input_port=tag_input_port,
+        transaction_input_port=transaction_input_port,
         user_input_port=user_input_port,
     )
 
     assert app.title == settings.fastapi.title
     assert app.openapi_tags == openapi_tags
     assert captured["currency_input_port"] is currency_input_port
+    assert captured["transaction_input_port"] is transaction_input_port
     assert (
         captured["pagination_default_limit"]
         == settings.fastapi.pagination_default_limit
@@ -71,6 +74,7 @@ async def test_create_http_app_uses_default_lifespan_context(monkeypatch) -> Non
         currency_input_port=object(),
         ledger_account_input_port=object(),
         tag_input_port=object(),
+        transaction_input_port=object(),
         user_input_port=object(),
     )
 

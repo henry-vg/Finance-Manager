@@ -19,6 +19,20 @@ from src.core.domain.ledger_account import (
     UpdateLedgerAccountData,
 )
 from src.core.domain.tag import CreateTagData, Tag, TagNotFoundError, UpdateTagData
+from src.core.domain.transaction import (
+    CreateTransactionData,
+    Entry,
+    EntryTag,
+    EntryWithTags,
+    NewEntry,
+    Transaction,
+    TransactionMustBePendingError,
+    TransactionNotFoundError,
+    TransactionStatus,
+    TransactionStatusTransitionNotAllowedError,
+    TransactionWithEntries,
+    UpdateTransactionData,
+)
 from src.core.domain.user import (
     CreateUserData,
     UpdateUserData,
@@ -30,6 +44,7 @@ from src.core.ports.input.currency_input_port import CurrencyInputPort
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
+from src.core.ports.input.transaction_input_port import TransactionInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.ports.output.database_health_output_port import DatabaseHealthOutputPort
 from src.core.shared import ListQuery, Page, SortDirection, SortTerm
@@ -335,6 +350,212 @@ class TagInputPortStub(TagInputPort):
             self.tags_by_id.pop(tag_id, None)
             return
         self.soft_deleted_tag_ids.add(tag_id)
+
+
+class TransactionInputPortStub(TransactionInputPort):
+    def __init__(self) -> None:
+        self.transactions_by_id: dict[int, TransactionWithEntries] = {}
+        self.post_calls: list[int] = []
+        self.void_calls: list[int] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
+        self.post_error: Exception | None = None
+        self.void_error: Exception | None = None
+        self._next_transaction_id = 1
+        self._next_entry_id = 100
+
+    def _build_entry_with_tags(
+        self,
+        *,
+        transaction_id: int,
+        entry: NewEntry,
+        entry_id: int,
+        created_at: datetime,
+        updated_at: datetime,
+    ) -> EntryWithTags:
+        return EntryWithTags(
+            entry=Entry(
+                id=entry_id,
+                created_at=created_at,
+                updated_at=updated_at,
+                transaction_id=transaction_id,
+                ledger_account_id=entry.ledger_account_id,
+                amount=entry.amount,
+                currency_id=entry.currency_id,
+                statement_closing_date=entry.statement_closing_date,
+                statement_due_date=entry.statement_due_date,
+            ),
+            entry_tags=tuple(
+                EntryTag(entry_id=entry_id, tag_id=entry_tag.tag_id)
+                for entry_tag in entry.entry_tags
+            ),
+        )
+
+    def _build_transaction_with_entries(
+        self,
+        *,
+        transaction_id: int,
+        effective_at: datetime,
+        title: str,
+        description: str | None,
+        status: TransactionStatus,
+        entries: tuple[NewEntry, ...],
+        created_at: datetime,
+        updated_at: datetime,
+        existing_entry_ids: tuple[int, ...] = (),
+        existing_entry_created_ats: tuple[datetime, ...] = (),
+    ) -> TransactionWithEntries:
+        entry_items: list[EntryWithTags] = []
+
+        for index, entry in enumerate(entries):
+            if index < len(existing_entry_ids):
+                entry_id = existing_entry_ids[index]
+                entry_created_at = existing_entry_created_ats[index]
+            else:
+                entry_id = self._next_entry_id
+                self._next_entry_id += 1
+                entry_created_at = created_at
+
+            entry_items.append(
+                self._build_entry_with_tags(
+                    transaction_id=transaction_id,
+                    entry=entry,
+                    entry_id=entry_id,
+                    created_at=entry_created_at,
+                    updated_at=updated_at,
+                ),
+            )
+
+        return TransactionWithEntries(
+            transaction=Transaction(
+                id=transaction_id,
+                created_at=created_at,
+                updated_at=updated_at,
+                effective_at=effective_at,
+                title=title,
+                description=description,
+                status=status,
+            ),
+            entries=tuple(entry_items),
+        )
+
+    async def get_transaction(
+        self,
+        transaction_id: int,
+    ) -> TransactionWithEntries:
+        transaction = self.transactions_by_id.get(transaction_id)
+
+        if transaction is None:
+            raise TransactionNotFoundError()
+
+        return transaction
+
+    async def create_transaction(
+        self,
+        data: CreateTransactionData,
+    ) -> TransactionWithEntries:
+        if self.create_error is not None:
+            raise self.create_error
+
+        transaction = self._build_transaction_with_entries(
+            transaction_id=self._next_transaction_id,
+            effective_at=data.effective_at,
+            title=data.title,
+            description=data.description,
+            status=data.status,
+            entries=data.entries,
+            created_at=build_timestamp(1),
+            updated_at=build_timestamp(1),
+        )
+        self.transactions_by_id[transaction.transaction.id] = transaction
+        self._next_transaction_id += 1
+        return transaction
+
+    async def update_transaction(
+        self,
+        transaction_id: int,
+        data: UpdateTransactionData,
+    ) -> TransactionWithEntries:
+        if self.update_error is not None:
+            raise self.update_error
+
+        current = await self.get_transaction(transaction_id)
+
+        if current.transaction.status != TransactionStatus.PENDING:
+            raise TransactionMustBePendingError()
+
+        updated = self._build_transaction_with_entries(
+            transaction_id=transaction_id,
+            effective_at=data.effective_at,
+            title=data.title,
+            description=data.description,
+            status=current.transaction.status,
+            entries=data.entries,
+            created_at=current.transaction.created_at,
+            updated_at=build_timestamp(2),
+            existing_entry_ids=tuple(entry.entry.id for entry in current.entries),
+            existing_entry_created_ats=tuple(
+                entry.entry.created_at for entry in current.entries
+            ),
+        )
+        self.transactions_by_id[transaction_id] = updated
+        return updated
+
+    async def post_transaction(
+        self,
+        transaction_id: int,
+    ) -> TransactionWithEntries:
+        if self.post_error is not None:
+            raise self.post_error
+
+        current = await self.get_transaction(transaction_id)
+
+        if current.transaction.status != TransactionStatus.PENDING:
+            raise TransactionStatusTransitionNotAllowedError()
+
+        posted = TransactionWithEntries(
+            transaction=Transaction(
+                id=current.transaction.id,
+                created_at=current.transaction.created_at,
+                updated_at=build_timestamp(2),
+                effective_at=current.transaction.effective_at,
+                title=current.transaction.title,
+                description=current.transaction.description,
+                status=TransactionStatus.POSTED,
+            ),
+            entries=current.entries,
+        )
+        self.transactions_by_id[transaction_id] = posted
+        self.post_calls.append(transaction_id)
+        return posted
+
+    async def void_transaction(
+        self,
+        transaction_id: int,
+    ) -> TransactionWithEntries:
+        if self.void_error is not None:
+            raise self.void_error
+
+        current = await self.get_transaction(transaction_id)
+
+        if current.transaction.status != TransactionStatus.PENDING:
+            raise TransactionStatusTransitionNotAllowedError()
+
+        voided = TransactionWithEntries(
+            transaction=Transaction(
+                id=current.transaction.id,
+                created_at=current.transaction.created_at,
+                updated_at=build_timestamp(2),
+                effective_at=current.transaction.effective_at,
+                title=current.transaction.title,
+                description=current.transaction.description,
+                status=TransactionStatus.VOIDED,
+            ),
+            entries=current.entries,
+        )
+        self.transactions_by_id[transaction_id] = voided
+        self.void_calls.append(transaction_id)
+        return voided
 
 
 def _sort_users(

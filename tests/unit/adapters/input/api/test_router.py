@@ -22,6 +22,7 @@ from src.core.domain.ledger_account import (
     UpdateLedgerAccountData,
 )
 from src.core.domain.tag import CreateTagData, Tag, UpdateTagData
+from src.core.domain.transaction import TransactionWithEntries
 from src.core.domain.user import (
     CreateUserData,
     UpdateUserData,
@@ -31,6 +32,7 @@ from src.core.ports.input.currency_input_port import CurrencyInputPort
 from src.core.ports.input.healthz_input_port import HealthzInputPort
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.input.tag_input_port import TagInputPort
+from src.core.ports.input.transaction_input_port import TransactionInputPort
 from src.core.ports.input.user_input_port import UserInputPort
 from src.core.shared import ListQuery, Page
 
@@ -325,6 +327,45 @@ class _UserInputPortStub(UserInputPort):
         return None
 
 
+class _TransactionInputPortStub(TransactionInputPort):
+    async def get_transaction(
+        self,
+        transaction_id: int,
+    ) -> TransactionWithEntries:
+        del transaction_id
+        raise RuntimeError("get_transaction is unused in router tests")
+
+    async def create_transaction(
+        self,
+        data,
+    ) -> TransactionWithEntries:
+        del data
+        raise RuntimeError("create_transaction is unused in router tests")
+
+    async def update_transaction(
+        self,
+        transaction_id: int,
+        data,
+    ) -> TransactionWithEntries:
+        del transaction_id
+        del data
+        raise RuntimeError("update_transaction is unused in router tests")
+
+    async def post_transaction(
+        self,
+        transaction_id: int,
+    ) -> TransactionWithEntries:
+        del transaction_id
+        raise RuntimeError("post_transaction is unused in router tests")
+
+    async def void_transaction(
+        self,
+        transaction_id: int,
+    ) -> TransactionWithEntries:
+        del transaction_id
+        raise RuntimeError("void_transaction is unused in router tests")
+
+
 def test_create_api_router_mounts_docs_and_healthz_routes():
     router = create_api_router(
         docs_url="/docs",
@@ -337,6 +378,7 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
         currency_input_port=_CurrencyInputPortStub(),
         ledger_account_input_port=_LedgerAccountInputPortStub(),
         tag_input_port=_TagInputPortStub(),
+        transaction_input_port=_TransactionInputPortStub(),
         user_input_port=_UserInputPortStub(),
     )
 
@@ -351,5 +393,8 @@ def test_create_api_router_mounts_docs_and_healthz_routes():
     assert "/ledger-account/list" in route_paths
     assert "/tag" in route_paths
     assert "/tag/list" in route_paths
+    assert "/transaction" in route_paths
+    assert "/transaction/post" in route_paths
+    assert "/transaction/void" in route_paths
     assert "/user" in route_paths
     assert "/user/list" in route_paths

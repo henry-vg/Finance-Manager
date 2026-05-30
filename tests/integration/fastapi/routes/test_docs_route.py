@@ -33,6 +33,7 @@ async def test_get_openapi_returns_metadata_and_documented_feature_paths(
         "HealthZ",
         "LedgerAccount",
         "Tag",
+        "Transaction",
         "User",
     }
     assert set(openapi_schema["paths"]) >= {
@@ -41,5 +42,8 @@ async def test_get_openapi_returns_metadata_and_documented_feature_paths(
         "/healthz/readiness",
         "/ledger-account",
         "/tag",
+        "/transaction",
+        "/transaction/post",
+        "/transaction/void",
         "/user/list",
     }

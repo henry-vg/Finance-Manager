@@ -130,6 +130,165 @@ def build_updated_ledger_account_response(**overrides: Any) -> dict[str, Any]:
     } | overrides
 
 
+def build_transaction_create_payload(**overrides: Any) -> dict[str, Any]:
+    return {
+        "effective_at": "2026-05-11T00:00:00.000Z",
+        "title": "Airline tickets",
+        "description": "Family vacation purchase",
+        "status": "pending",
+        "entries": [
+            {
+                "ledger_account_id": 1,
+                "amount": "1200.00",
+                "currency_id": 1,
+                "statement_closing_date": None,
+                "statement_due_date": None,
+                "entry_tags": [
+                    {"tag_id": 10},
+                    {"tag_id": 11},
+                ],
+            },
+            {
+                "ledger_account_id": 2,
+                "amount": "-1200.00",
+                "currency_id": 1,
+                "statement_closing_date": "2026-05-31",
+                "statement_due_date": "2026-06-10",
+                "entry_tags": [],
+            },
+        ],
+    } | overrides
+
+
+def build_transaction_update_payload(**overrides: Any) -> dict[str, Any]:
+    return {
+        "effective_at": "2026-05-12T00:00:00.000Z",
+        "title": "Updated airline tickets",
+        "description": "Updated family vacation purchase",
+        "entries": [
+            {
+                "ledger_account_id": 1,
+                "amount": "1300.00",
+                "currency_id": 1,
+                "statement_closing_date": None,
+                "statement_due_date": None,
+                "entry_tags": [{"tag_id": 11}],
+            },
+            {
+                "ledger_account_id": 2,
+                "amount": "-1300.00",
+                "currency_id": 1,
+                "statement_closing_date": "2026-05-31",
+                "statement_due_date": "2026-06-10",
+                "entry_tags": [],
+            },
+        ],
+    } | overrides
+
+
+def build_transaction_response(**overrides: Any) -> dict[str, Any]:
+    return {
+        "id": 1,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-01T00:00:00.000Z",
+        "effective_at": "2026-05-11T00:00:00.000Z",
+        "title": "Airline tickets",
+        "description": "Family vacation purchase",
+        "status": "pending",
+        "entries": [
+            {
+                "entry": {
+                    "id": 100,
+                    "created_at": "2026-05-01T00:00:00.000Z",
+                    "updated_at": "2026-05-01T00:00:00.000Z",
+                    "transaction_id": 1,
+                    "ledger_account_id": 1,
+                    "amount": "1200.00",
+                    "currency_id": 1,
+                    "statement_closing_date": None,
+                    "statement_due_date": None,
+                },
+                "entry_tags": [
+                    {"entry_id": 100, "tag_id": 10},
+                    {"entry_id": 100, "tag_id": 11},
+                ],
+            },
+            {
+                "entry": {
+                    "id": 101,
+                    "created_at": "2026-05-01T00:00:00.000Z",
+                    "updated_at": "2026-05-01T00:00:00.000Z",
+                    "transaction_id": 1,
+                    "ledger_account_id": 2,
+                    "amount": "-1200.00",
+                    "currency_id": 1,
+                    "statement_closing_date": "2026-05-31",
+                    "statement_due_date": "2026-06-10",
+                },
+                "entry_tags": [],
+            },
+        ],
+    } | overrides
+
+
+def build_updated_transaction_response(**overrides: Any) -> dict[str, Any]:
+    return {
+        "id": 1,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-02T00:00:00.000Z",
+        "effective_at": "2026-05-12T00:00:00.000Z",
+        "title": "Updated airline tickets",
+        "description": "Updated family vacation purchase",
+        "status": "pending",
+        "entries": [
+            {
+                "entry": {
+                    "id": 100,
+                    "created_at": "2026-05-01T00:00:00.000Z",
+                    "updated_at": "2026-05-02T00:00:00.000Z",
+                    "transaction_id": 1,
+                    "ledger_account_id": 1,
+                    "amount": "1300.00",
+                    "currency_id": 1,
+                    "statement_closing_date": None,
+                    "statement_due_date": None,
+                },
+                "entry_tags": [{"entry_id": 100, "tag_id": 11}],
+            },
+            {
+                "entry": {
+                    "id": 101,
+                    "created_at": "2026-05-01T00:00:00.000Z",
+                    "updated_at": "2026-05-02T00:00:00.000Z",
+                    "transaction_id": 1,
+                    "ledger_account_id": 2,
+                    "amount": "-1300.00",
+                    "currency_id": 1,
+                    "statement_closing_date": "2026-05-31",
+                    "statement_due_date": "2026-06-10",
+                },
+                "entry_tags": [],
+            },
+        ],
+    } | overrides
+
+
+def build_posted_transaction_response(**overrides: Any) -> dict[str, Any]:
+    return build_transaction_response(
+        updated_at="2026-05-02T00:00:00.000Z",
+        status="posted",
+        **overrides,
+    )
+
+
+def build_voided_transaction_response(**overrides: Any) -> dict[str, Any]:
+    return build_transaction_response(
+        updated_at="2026-05-02T00:00:00.000Z",
+        status="voided",
+        **overrides,
+    )
+
+
 def build_user_create_payload(**overrides: Any) -> dict[str, Any]:
     return {
         "first_name": "Ada",
