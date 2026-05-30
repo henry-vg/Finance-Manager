@@ -54,9 +54,11 @@ The architectural boundaries are enforced by `pytestarch` tests in `tests/archit
 - Credit-card invoices are not persisted as their own aggregate in v1. An invoice is a projection over credit-card `Entry` records.
 - Invoice identity is factual on the `Entry`: `statement_closing_date` and `statement_due_date` belong to the entry when the entry represents credit-card liability.
 - `effective_at` remains the economic date of the transaction, but it does not define invoice membership by itself.
-- The current public simple-CRUD surface for the financial model is intentionally narrow: `LedgerAccount` and `Tag`.
+- The current public CRUD surface is intentionally narrow: the currency catalog plus independent `LedgerAccount` and `Tag` flows.
 - `Entry` and `EntryTag` do not have independent CRUD in v1.
 - `Transaction` remains the aggregate root of the accounting event, but its public write flow must be introduced together with balanced subordinate `Entry` writes instead of as an isolated simple CRUD.
+- `Transaction` does not own a top-level currency in v1. Each `Entry` references the authoritative `currency_id` for its monetary value.
+- `LedgerAccount` does not own a fixed currency column. Read models expose `balances[]` grouped by `currency_id`.
 
 
 ## Engineering Conventions
@@ -109,7 +111,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Audit timestamps and `deleted_at` are database-owned. The application signals state changes; the database is responsible for writing the authoritative timestamps.
 - Soft-deleted rows are invisible to normal reads and updates. Hard delete must be an explicit opt-in behavior when the API or use case requires physical removal.
 - Constraint names should be stable and explicit when they carry business meaning, such as the unique email constraint on `users`.
-- When the database persists a core-owned closed vocabulary, prefer typed SQLAlchemy enums backed by native Postgres enums instead of unconstrained `VARCHAR` columns. The current `ledger_accounts.type` and optional `ledger_accounts.instrument_kind` columns are the reference pattern for core-owned vocabularies; `display_currency_iso_code` remains a constrained string that must reference the currency catalog.
+- When the database persists a core-owned closed vocabulary, prefer typed SQLAlchemy enums backed by native Postgres enums instead of unconstrained `VARCHAR` columns. The current `ledger_accounts.type` and optional `ledger_accounts.instrument_kind` columns are the reference pattern for core-owned vocabularies; monetary identity is persisted through `entries.currency_id` references to the currency catalog instead of transaction-level or ledger-account-level currency columns.
 
 ### API and Mapping Rules
 
@@ -178,8 +180,11 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - `LedgerAccount.type` is the primary accounting classification.
 - `LedgerAccount.instrument_kind` is an optional operational classification. It is used only when the workflow depends on the represented instrument, such as credit-card invoice semantics.
 - `instrument_kind` must remain `None` when no instrument-specific behavior is needed; it does not replace `type`.
+- `Transaction` does not own a top-level currency. Each `Entry.currency_id` is the monetary source of truth for that leg of the accounting event.
+- `LedgerAccount` does not own a fixed currency field. Account reads expose `balances[]` by `currency_id`.
 - A transaction may transition only from `PENDING` to `POSTED` or `VOIDED`.
 - `POSTED` is an immutable accounting fact.
+- `VOIDED` is terminal and does not return to `PENDING`.
 - Correcting a `POSTED` transaction must happen through a new reversal transaction with opposite entries; the system must not support destructive `POSTED -> VOIDED`.
 
 
