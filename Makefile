@@ -11,7 +11,11 @@ run-migrations:
 	CFG_POSTGRES_HOST=localhost alembic upgrade head
 
 run-tests:
-	python3 -m pytest
+	pytest
 
 run-tests-with-coverage:
-	python3 -m pytest --cov=src --cov-branch --cov-report=term-missing
+	pytest --cov=src --cov-branch --cov-report=term-missing
+
+run-quality-check:
+	ruff check .
+	mypy .
