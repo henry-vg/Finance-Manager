@@ -39,7 +39,3 @@ class TransactionRecord(PostgresPersistedRecordMixin):
         transaction_status_enum,
         nullable=False,
     )
-    currency: Mapped[str] = mapped_column(
-        String(length=3),
-        nullable=False,
-    )

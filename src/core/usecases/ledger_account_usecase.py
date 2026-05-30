@@ -2,10 +2,11 @@ from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
     LedgerAccount,
     LedgerAccountChanges,
-    LedgerAccountCurrencyISOCodeNotSupportedError,
+    LedgerAccountInstrumentKindNotAllowedError,
     LedgerAccountNotFoundError,
     NewLedgerAccount,
     UpdateLedgerAccountData,
+    can_assign_ledger_account_instrument_kind,
 )
 from src.core.ports.input.ledger_account_input_port import LedgerAccountInputPort
 from src.core.ports.output.ledger_account_output_port import (
@@ -21,12 +22,6 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
         unit_of_work_output_port_factory: UnitOfWorkOutputPortFactory,
     ) -> None:
         self._unit_of_work_output_port_factory = unit_of_work_output_port_factory
-
-    @staticmethod
-    def _normalize_currency_iso_code(
-        currency_iso_code: str,
-    ) -> str:
-        return currency_iso_code.strip().upper()
 
     async def list_ledger_accounts(
         self,
@@ -58,23 +53,18 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
         data: CreateLedgerAccountData,
     ) -> LedgerAccount:
         async with self._unit_of_work_output_port_factory() as unit_of_work:
-            normalized_currency_iso_code = self._normalize_currency_iso_code(
-                data.currency_iso_code,
-            )
-            currency = await unit_of_work.currencies.get_currency_by_iso_code(
-                iso_code=normalized_currency_iso_code,
-            )
-
-            if currency is None:
-                raise LedgerAccountCurrencyISOCodeNotSupportedError()
+            if not can_assign_ledger_account_instrument_kind(
+                ledger_account_type=data.type,
+                instrument_kind=data.instrument_kind,
+            ):
+                raise LedgerAccountInstrumentKindNotAllowedError()
 
             created_ledger_account = (
                 await unit_of_work.ledger_accounts.create_ledger_account(
                     new_ledger_account=NewLedgerAccount(
                         title=data.title,
                         type=data.type,
-                        kind=data.kind,
-                        currency_iso_code=normalized_currency_iso_code,
+                        instrument_kind=data.instrument_kind,
                     ),
                 )
             )
@@ -98,15 +88,11 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
             if current_ledger_account is None:
                 raise LedgerAccountNotFoundError()
 
-            normalized_currency_iso_code = self._normalize_currency_iso_code(
-                data.currency_iso_code,
-            )
-            currency = await unit_of_work.currencies.get_currency_by_iso_code(
-                iso_code=normalized_currency_iso_code,
-            )
-
-            if currency is None:
-                raise LedgerAccountCurrencyISOCodeNotSupportedError()
+            if not can_assign_ledger_account_instrument_kind(
+                ledger_account_type=data.type,
+                instrument_kind=data.instrument_kind,
+            ):
+                raise LedgerAccountInstrumentKindNotAllowedError()
 
             try:
                 updated_ledger_account = (
@@ -115,8 +101,7 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
                         changes=LedgerAccountChanges(
                             title=data.title,
                             type=data.type,
-                            kind=data.kind,
-                            currency_iso_code=normalized_currency_iso_code,
+                            instrument_kind=data.instrument_kind,
                         ),
                     )
                 )

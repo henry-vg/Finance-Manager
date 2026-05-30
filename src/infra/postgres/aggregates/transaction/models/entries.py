@@ -19,6 +19,10 @@ class EntryRecord(PostgresPersistedRecordMixin):
         ForeignKey("ledger_accounts.id"),
         nullable=False,
     )
+    currency_id: Mapped[int] = mapped_column(
+        ForeignKey("currencies.id"),
+        nullable=False,
+    )
     amount: Mapped[Decimal] = mapped_column(
         Numeric(asdecimal=True),
         nullable=False,

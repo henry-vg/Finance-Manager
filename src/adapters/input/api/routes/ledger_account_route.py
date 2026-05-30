@@ -15,8 +15,9 @@ from src.adapters.input.api.pagination import (
 from src.core.domain.ledger_account import (
     CreateLedgerAccountData,
     LedgerAccount,
-    LedgerAccountCurrencyISOCodeNotSupportedError,
-    LedgerAccountKind,
+    LedgerAccountBalance,
+    LedgerAccountInstrumentKind,
+    LedgerAccountInstrumentKindNotAllowedError,
     LedgerAccountNotFoundError,
     LedgerAccountSortableField,
     LedgerAccountType,
@@ -28,7 +29,8 @@ from src.core.shared import ListQuery, Page
 from ..schemas import PageResponse
 from ..schemas.ledger_account_schema import (
     CreateLedgerAccountRequest,
-    LedgerAccountKindSchema,
+    LedgerAccountBalanceResponse,
+    LedgerAccountInstrumentKindSchema,
     LedgerAccountResponse,
     LedgerAccountTypeSchema,
     UpdateLedgerAccountRequest,
@@ -41,8 +43,17 @@ class LedgerAccountListSortField(StrEnum):
     UPDATED_AT = "updated_at"
     TITLE = "title"
     TYPE = "type"
-    KIND = "kind"
-    CURRENCY_ISO_CODE = "currency_iso_code"
+    INSTRUMENT_KIND = "instrument_kind"
+
+
+def _to_ledger_account_balance_response(
+    ledger_account_balance: LedgerAccountBalance,
+) -> LedgerAccountBalanceResponse:
+    return LedgerAccountBalanceResponse(
+        currency_id=ledger_account_balance.currency_id,
+        current_balance=ledger_account_balance.current_balance,
+        future_balance=ledger_account_balance.future_balance,
+    )
 
 
 def _to_ledger_account_response(
@@ -54,8 +65,15 @@ def _to_ledger_account_response(
         updated_at=ledger_account.updated_at,
         title=ledger_account.title,
         type=LedgerAccountTypeSchema[ledger_account.type.name],
-        kind=LedgerAccountKindSchema[ledger_account.kind.name],
-        currency_iso_code=ledger_account.currency_iso_code,
+        instrument_kind=(
+            None
+            if ledger_account.instrument_kind is None
+            else LedgerAccountInstrumentKindSchema[ledger_account.instrument_kind.name]
+        ),
+        balances=tuple(
+            _to_ledger_account_balance_response(ledger_account_balance=balance)
+            for balance in ledger_account.balances
+        ),
     )
 
 
@@ -85,12 +103,13 @@ def create_router(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Ledger account not found.",
     )
-    ledger_account_currency_iso_code_not_supported_translation = (
-        HTTPExceptionTranslation(
-            exception_type=LedgerAccountCurrencyISOCodeNotSupportedError,
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Ledger account currency ISO code is not supported.",
-        )
+    ledger_account_instrument_kind_not_allowed_translation = HTTPExceptionTranslation(
+        exception_type=LedgerAccountInstrumentKindNotAllowedError,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=(
+            "Ledger account instrument kind is not allowed for the provided "
+            "ledger account type."
+        ),
     )
     list_sort_config = ListQuerySortConfig(
         fields=tuple(
@@ -193,8 +212,9 @@ def create_router(
             },
             422: {
                 "description": (
-                    "The request body failed validation or the provided currency ISO "
-                    "code is not supported."
+                    "The request body failed validation or the selected "
+                    "instrument kind is not allowed for the provided ledger "
+                    "account type."
                 ),
             },
         },
@@ -204,14 +224,17 @@ def create_router(
         payload: CreateLedgerAccountRequest,
     ) -> LedgerAccountResponse:
         with translate_exceptions_to_http(
-            ledger_account_currency_iso_code_not_supported_translation,
+            ledger_account_instrument_kind_not_allowed_translation,
         ):
             ledger_account = await ledger_account_input_port.create_ledger_account(
                 data=CreateLedgerAccountData(
                     title=payload.title,
                     type=LedgerAccountType[payload.type.name],
-                    kind=LedgerAccountKind[payload.kind.name],
-                    currency_iso_code=payload.currency_iso_code,
+                    instrument_kind=(
+                        None
+                        if payload.instrument_kind is None
+                        else LedgerAccountInstrumentKind[payload.instrument_kind.name]
+                    ),
                 ),
             )
 
@@ -233,8 +256,9 @@ def create_router(
             },
             422: {
                 "description": (
-                    "The request payload or query parameters failed validation, or "
-                    "the provided currency ISO code is not supported."
+                    "The request payload or query parameters failed validation, "
+                    "or the selected instrument kind is not allowed for the "
+                    "provided ledger account type."
                 ),
             },
         },
@@ -250,15 +274,18 @@ def create_router(
     ) -> LedgerAccountResponse:
         with translate_exceptions_to_http(
             ledger_account_not_found_translation,
-            ledger_account_currency_iso_code_not_supported_translation,
+            ledger_account_instrument_kind_not_allowed_translation,
         ):
             ledger_account = await ledger_account_input_port.update_ledger_account(
                 ledger_account_id=id,
                 data=UpdateLedgerAccountData(
                     title=payload.title,
                     type=LedgerAccountType[payload.type.name],
-                    kind=LedgerAccountKind[payload.kind.name],
-                    currency_iso_code=payload.currency_iso_code,
+                    instrument_kind=(
+                        None
+                        if payload.instrument_kind is None
+                        else LedgerAccountInstrumentKind[payload.instrument_kind.name]
+                    ),
                 ),
             )
 

@@ -28,12 +28,12 @@ class TransactionOutputPort(Protocol):
         changes: TransactionChanges,
     ) -> TransactionWithEntries: ...
 
-    async def mark_transaction_effective(
+    async def post_transaction(
         self,
         transaction_id: int,
     ) -> TransactionWithEntries: ...
 
-    async def cancel_transaction(
+    async def void_transaction(
         self,
         transaction_id: int,
     ) -> TransactionWithEntries: ...

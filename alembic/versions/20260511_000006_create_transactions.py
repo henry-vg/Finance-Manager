@@ -17,8 +17,8 @@ depends_on = None
 
 transaction_status_enum = postgresql.ENUM(
     "PENDING",
-    "EFFECTIVE",
-    "CANCELED",
+    "POSTED",
+    "VOIDED",
     name="transaction_status_enum",
     create_type=False,
 )
@@ -36,7 +36,6 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("status", transaction_status_enum, nullable=False),
-        sa.Column("currency", sa.String(length=3), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

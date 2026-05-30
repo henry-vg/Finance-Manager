@@ -20,6 +20,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), sa.Identity(), nullable=False),
         sa.Column("transaction_id", sa.Integer(), nullable=False),
         sa.Column("ledger_account_id", sa.Integer(), nullable=False),
+        sa.Column("currency_id", sa.Integer(), nullable=False),
         sa.Column("amount", sa.Numeric(), nullable=False),
         sa.Column("statement_closing_date", sa.Date(), nullable=True),
         sa.Column("statement_due_date", sa.Date(), nullable=True),

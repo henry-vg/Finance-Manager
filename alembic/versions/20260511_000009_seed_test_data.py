@@ -33,19 +33,18 @@ ledger_account_type_enum = postgresql.ENUM(
     create_type=False,
 )
 
-ledger_account_kind_enum = postgresql.ENUM(
+ledger_account_instrument_kind_enum = postgresql.ENUM(
     "BANK_ACCOUNT",
     "CREDIT_CARD",
     "WALLET",
-    "OTHER",
-    name="ledger_account_kind_enum",
+    name="ledger_account_instrument_kind_enum",
     create_type=False,
 )
 
 transaction_status_enum = postgresql.ENUM(
     "PENDING",
-    "EFFECTIVE",
-    "CANCELED",
+    "POSTED",
+    "VOIDED",
     name="transaction_status_enum",
     create_type=False,
 )
@@ -71,8 +70,7 @@ ledger_accounts_table = sa.table(
     sa.column("id", sa.Integer()),
     sa.column("title", sa.String(length=255)),
     sa.column("type", ledger_account_type_enum),
-    sa.column("kind", ledger_account_kind_enum),
-    sa.column("currency_iso_code", sa.String(length=3)),
+    sa.column("instrument_kind", ledger_account_instrument_kind_enum),
 )
 
 transactions_table = sa.table(
@@ -82,7 +80,6 @@ transactions_table = sa.table(
     sa.column("title", sa.String(length=255)),
     sa.column("description", sa.Text()),
     sa.column("status", transaction_status_enum),
-    sa.column("currency", sa.String(length=3)),
 )
 
 entries_table = sa.table(
@@ -90,6 +87,7 @@ entries_table = sa.table(
     sa.column("id", sa.Integer()),
     sa.column("transaction_id", sa.Integer()),
     sa.column("ledger_account_id", sa.Integer()),
+    sa.column("currency_id", sa.Integer()),
     sa.column("amount", sa.Numeric()),
     sa.column("statement_closing_date", sa.Date()),
     sa.column("statement_due_date", sa.Date()),
@@ -151,26 +149,26 @@ def _build_tags() -> list[dict[str, object]]:
 
 def _build_ledger_accounts() -> list[dict[str, object]]:
     account_specs = [
-        ("Main Checking BRL", "ASSET", "BANK_ACCOUNT", "BRL"),
-        ("Wallet BRL", "ASSET", "WALLET", "BRL"),
-        ("Savings BRL", "ASSET", "BANK_ACCOUNT", "BRL"),
-        ("Visa Platinum BRL", "LIABILITY", "CREDIT_CARD", "BRL"),
-        ("Mastercard Black BRL", "LIABILITY", "CREDIT_CARD", "BRL"),
-        ("Salary Income BRL", "INCOME", "OTHER", "BRL"),
-        ("Freelance Income BRL", "INCOME", "OTHER", "BRL"),
-        ("Groceries Expense BRL", "EXPENSE", "OTHER", "BRL"),
-        ("Rent Expense BRL", "EXPENSE", "OTHER", "BRL"),
-        ("Travel Expense BRL", "EXPENSE", "OTHER", "BRL"),
-        ("Emergency Fund Equity BRL", "EQUITY", "OTHER", "BRL"),
-        ("Opening Balance Equity BRL", "EQUITY", "OTHER", "BRL"),
-        ("Main Checking USD", "ASSET", "BANK_ACCOUNT", "USD"),
-        ("Travel Card USD", "LIABILITY", "CREDIT_CARD", "USD"),
-        ("Travel Expense USD", "EXPENSE", "OTHER", "USD"),
-        ("Main Checking EUR", "ASSET", "BANK_ACCOUNT", "EUR"),
-        ("Travel Card EUR", "LIABILITY", "CREDIT_CARD", "EUR"),
-        ("Travel Expense EUR", "EXPENSE", "OTHER", "EUR"),
-        ("Cashback Asset BRL", "ASSET", "OTHER", "BRL"),
-        ("Utilities Expense BRL", "EXPENSE", "OTHER", "BRL"),
+        ("Main Checking BRL", "ASSET", "BANK_ACCOUNT"),
+        ("Wallet BRL", "ASSET", "WALLET"),
+        ("Savings BRL", "ASSET", "BANK_ACCOUNT"),
+        ("Visa Platinum BRL", "LIABILITY", "CREDIT_CARD"),
+        ("Mastercard Black BRL", "LIABILITY", "CREDIT_CARD"),
+        ("Salary Income BRL", "INCOME", None),
+        ("Freelance Income BRL", "INCOME", None),
+        ("Groceries Expense BRL", "EXPENSE", None),
+        ("Rent Expense BRL", "EXPENSE", None),
+        ("Travel Expense BRL", "EXPENSE", None),
+        ("Emergency Fund Equity BRL", "EQUITY", None),
+        ("Opening Balance Equity BRL", "EQUITY", None),
+        ("Main Checking USD", "ASSET", "BANK_ACCOUNT"),
+        ("Travel Card USD", "LIABILITY", "CREDIT_CARD"),
+        ("Travel Expense USD", "EXPENSE", None),
+        ("Main Checking EUR", "ASSET", "BANK_ACCOUNT"),
+        ("Travel Card EUR", "LIABILITY", "CREDIT_CARD"),
+        ("Travel Expense EUR", "EXPENSE", None),
+        ("Cashback Asset BRL", "ASSET", None),
+        ("Utilities Expense BRL", "EXPENSE", None),
     ]
 
     return [
@@ -178,10 +176,9 @@ def _build_ledger_accounts() -> list[dict[str, object]]:
             "id": LEDGER_ACCOUNT_ID_START + offset,
             "title": title,
             "type": account_type,
-            "kind": kind,
-            "currency_iso_code": currency,
+            "instrument_kind": instrument_kind,
         }
-        for offset, (title, account_type, kind, currency) in enumerate(account_specs)
+        for offset, (title, account_type, instrument_kind) in enumerate(account_specs)
     ]
 
 
@@ -191,7 +188,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Visa groceries run",
             "description": "Seed credit-card purchase 01",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 7,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 3,
             "amount": Decimal("245.80"),
@@ -201,8 +198,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Visa rent payment",
             "description": "Seed credit-card purchase 02",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 8,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 3,
             "amount": Decimal("1200.00"),
@@ -213,7 +210,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Mastercard travel booking",
             "description": "Seed credit-card purchase 03",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 9,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 4,
             "amount": Decimal("780.25"),
@@ -223,8 +220,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Visa utilities bundle",
             "description": "Seed credit-card purchase 04",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 19,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 3,
             "amount": Decimal("340.00"),
@@ -234,8 +231,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Mastercard weekend groceries",
             "description": "Seed credit-card purchase 05",
-            "status": "CANCELED",
-            "currency": "BRL",
+            "status": "VOIDED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 7,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 4,
             "amount": Decimal("186.90"),
@@ -246,7 +243,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Visa hotel booking",
             "description": "Seed credit-card purchase 06",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 9,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 3,
             "amount": Decimal("930.40"),
@@ -256,8 +253,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Mastercard electricity bill",
             "description": "Seed credit-card purchase 07",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 19,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 4,
             "amount": Decimal("289.55"),
@@ -268,7 +265,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Visa family dinner",
             "description": "Seed credit-card purchase 08",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 7,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 3,
             "amount": Decimal("154.70"),
@@ -278,8 +275,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Checking groceries",
             "description": "Seed debit purchase 09",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 7,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 0,
             "amount": Decimal("98.30"),
@@ -289,8 +286,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Checking rent transfer",
             "description": "Seed debit purchase 10",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 8,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 0,
             "amount": Decimal("1400.00"),
@@ -301,7 +298,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Wallet utilities cashout",
             "description": "Seed wallet purchase 11",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 19,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 1,
             "amount": Decimal("120.00"),
@@ -312,7 +309,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Savings travel booking",
             "description": "Seed savings purchase 12",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 9,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 2,
             "amount": Decimal("450.00"),
@@ -322,8 +319,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Salary deposit",
             "description": "Seed income transaction 13",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 0,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 5,
             "amount": Decimal("6200.00"),
@@ -333,8 +330,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Freelance deposit",
             "description": "Seed income transaction 14",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 0,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 6,
             "amount": Decimal("1800.00"),
@@ -345,7 +342,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Cashback recognition",
             "description": "Seed income transaction 15",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 18,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 6,
             "amount": Decimal("75.50"),
@@ -356,7 +353,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Savings allocation",
             "description": "Seed transfer transaction 16",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 2,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 0,
             "amount": Decimal("850.00"),
@@ -366,8 +363,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "Opening balance setup",
             "description": "Seed equity transaction 17",
-            "status": "EFFECTIVE",
-            "currency": "BRL",
+            "status": "POSTED",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 0,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 11,
             "amount": Decimal("10000.00"),
@@ -378,7 +375,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "Emergency reserve contribution",
             "description": "Seed equity transaction 18",
             "status": "PENDING",
-            "currency": "BRL",
+            "currency_id": 1,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 2,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 10,
             "amount": Decimal("400.00"),
@@ -389,7 +386,7 @@ def _build_transaction_specs() -> list[dict[str, object]]:
             "title": "USD travel card charge",
             "description": "Seed foreign transaction 19",
             "status": "PENDING",
-            "currency": "USD",
+            "currency_id": 2,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 14,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 13,
             "amount": Decimal("320.00"),
@@ -399,8 +396,8 @@ def _build_transaction_specs() -> list[dict[str, object]]:
         {
             "title": "EUR travel card charge",
             "description": "Seed foreign transaction 20",
-            "status": "EFFECTIVE",
-            "currency": "EUR",
+            "status": "POSTED",
+            "currency_id": 3,
             "positive_account_id": LEDGER_ACCOUNT_ID_START + 17,
             "negative_account_id": LEDGER_ACCOUNT_ID_START + 16,
             "amount": Decimal("280.00"),
@@ -427,7 +424,6 @@ def _build_transactions() -> list[dict[str, object]]:
             "title": transaction_spec["title"],
             "description": transaction_spec["description"],
             "status": transaction_spec["status"],
-            "currency": transaction_spec["currency"],
         }
         for offset, transaction_spec in enumerate(transaction_specs)
     ]
@@ -446,6 +442,7 @@ def _build_entries() -> list[dict[str, object]]:
                 "id": positive_entry_id,
                 "transaction_id": transaction_id,
                 "ledger_account_id": transaction_spec["positive_account_id"],
+                "currency_id": transaction_spec["currency_id"],
                 "amount": transaction_spec["amount"],
                 "statement_closing_date": None,
                 "statement_due_date": None,
@@ -456,6 +453,7 @@ def _build_entries() -> list[dict[str, object]]:
                 "id": negative_entry_id,
                 "transaction_id": transaction_id,
                 "ledger_account_id": transaction_spec["negative_account_id"],
+                "currency_id": transaction_spec["currency_id"],
                 "amount": -transaction_spec["amount"],
                 "statement_closing_date": transaction_spec["statement_closing_date"],
                 "statement_due_date": transaction_spec["statement_due_date"],

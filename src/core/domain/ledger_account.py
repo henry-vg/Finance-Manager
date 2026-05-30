@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from enum import IntEnum
 
 
@@ -11,11 +12,36 @@ class LedgerAccountType(IntEnum):
     EQUITY = 5
 
 
-class LedgerAccountKind(IntEnum):
+class LedgerAccountInstrumentKind(IntEnum):
     BANK_ACCOUNT = 1
     CREDIT_CARD = 2
     WALLET = 3
-    OTHER = 4
+
+
+_ALLOWED_LEDGER_ACCOUNT_INSTRUMENT_KINDS = {
+    LedgerAccountType.ASSET: (
+        None,
+        LedgerAccountInstrumentKind.BANK_ACCOUNT,
+        LedgerAccountInstrumentKind.WALLET,
+    ),
+    LedgerAccountType.LIABILITY: (
+        None,
+        LedgerAccountInstrumentKind.CREDIT_CARD,
+    ),
+    LedgerAccountType.INCOME: (None,),
+    LedgerAccountType.EXPENSE: (None,),
+    LedgerAccountType.EQUITY: (None,),
+}
+
+
+def can_assign_ledger_account_instrument_kind(
+    *,
+    ledger_account_type: LedgerAccountType,
+    instrument_kind: LedgerAccountInstrumentKind | None,
+) -> bool:
+    return (
+        instrument_kind in _ALLOWED_LEDGER_ACCOUNT_INSTRUMENT_KINDS[ledger_account_type]
+    )
 
 
 class LedgerAccountSortableField(IntEnum):
@@ -24,8 +50,14 @@ class LedgerAccountSortableField(IntEnum):
     UPDATED_AT = 3
     TITLE = 4
     TYPE = 5
-    KIND = 6
-    CURRENCY_ISO_CODE = 7
+    INSTRUMENT_KIND = 6
+
+
+@dataclass(frozen=True)
+class LedgerAccountBalance:
+    currency_id: int
+    current_balance: Decimal
+    future_balance: Decimal
 
 
 @dataclass(frozen=True)
@@ -35,45 +67,41 @@ class LedgerAccount:
     updated_at: datetime
     title: str
     type: LedgerAccountType
-    kind: LedgerAccountKind
-    currency_iso_code: str
+    instrument_kind: LedgerAccountInstrumentKind | None
+    balances: tuple[LedgerAccountBalance, ...] = ()
 
 
 @dataclass(frozen=True)
 class NewLedgerAccount:
     title: str
     type: LedgerAccountType
-    kind: LedgerAccountKind
-    currency_iso_code: str
+    instrument_kind: LedgerAccountInstrumentKind | None
 
 
 @dataclass(frozen=True)
 class LedgerAccountChanges:
     title: str
     type: LedgerAccountType
-    kind: LedgerAccountKind
-    currency_iso_code: str
+    instrument_kind: LedgerAccountInstrumentKind | None
 
 
 @dataclass(frozen=True)
 class CreateLedgerAccountData:
     title: str
     type: LedgerAccountType
-    kind: LedgerAccountKind
-    currency_iso_code: str
+    instrument_kind: LedgerAccountInstrumentKind | None
 
 
 @dataclass(frozen=True)
 class UpdateLedgerAccountData:
     title: str
     type: LedgerAccountType
-    kind: LedgerAccountKind
-    currency_iso_code: str
+    instrument_kind: LedgerAccountInstrumentKind | None
 
 
 class LedgerAccountNotFoundError(Exception):
     pass
 
 
-class LedgerAccountCurrencyISOCodeNotSupportedError(Exception):
+class LedgerAccountInstrumentKindNotAllowedError(Exception):
     pass

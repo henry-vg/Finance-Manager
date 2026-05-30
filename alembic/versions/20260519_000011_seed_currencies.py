@@ -16,6 +16,7 @@ depends_on = None
 
 currencies_table = sa.table(
     "currencies",
+    sa.column("id", sa.Integer()),
     sa.column("iso_code", sa.String(length=3)),
     sa.column("iso_numeric", sa.String(length=3)),
     sa.column("name", sa.String(length=255)),
@@ -29,6 +30,7 @@ def upgrade() -> None:
         currencies_table,
         [
             {
+                "id": 1,
                 "iso_code": "BRL",
                 "iso_numeric": "986",
                 "name": "Brazilian Real",
@@ -36,6 +38,7 @@ def upgrade() -> None:
                 "decimal_places": 2,
             },
             {
+                "id": 2,
                 "iso_code": "USD",
                 "iso_numeric": "840",
                 "name": "United States Dollar",
@@ -43,6 +46,7 @@ def upgrade() -> None:
                 "decimal_places": 2,
             },
             {
+                "id": 3,
                 "iso_code": "EUR",
                 "iso_numeric": "978",
                 "name": "Euro",
@@ -51,9 +55,21 @@ def upgrade() -> None:
             },
         ],
     )
+    op.create_foreign_key(
+        "fk_entries_currency_id_currencies",
+        source_table="entries",
+        referent_table="currencies",
+        local_cols=["currency_id"],
+        remote_cols=["id"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint(
+        "fk_entries_currency_id_currencies",
+        "entries",
+        type_="foreignkey",
+    )
     op.execute(
         sa.text(
             "DELETE FROM currencies WHERE iso_code IN ('BRL', 'USD', 'EUR')",

@@ -6,19 +6,17 @@ from enum import IntEnum
 
 class TransactionStatus(IntEnum):
     PENDING = 1
-    EFFECTIVE = 2
-    CANCELED = 3
+    POSTED = 2
+    VOIDED = 3
 
 
 _ALLOWED_TRANSACTION_STATUS_TRANSITIONS = {
-    TransactionStatus.PENDING: frozenset(
-        {
-            TransactionStatus.EFFECTIVE,
-            TransactionStatus.CANCELED,
-        },
+    TransactionStatus.PENDING: (
+        TransactionStatus.POSTED,
+        TransactionStatus.VOIDED,
     ),
-    TransactionStatus.EFFECTIVE: frozenset({TransactionStatus.CANCELED}),
-    TransactionStatus.CANCELED: frozenset(),
+    TransactionStatus.POSTED: (),
+    TransactionStatus.VOIDED: (),
 }
 
 
@@ -39,7 +37,6 @@ class Transaction:
     title: str
     description: str | None
     status: TransactionStatus
-    currency: str
 
 
 @dataclass(frozen=True)
@@ -51,6 +48,7 @@ class NewEntryTag:
 class NewEntry:
     ledger_account_id: int
     amount: Decimal
+    currency_id: int
     statement_closing_date: date | None
     statement_due_date: date | None
     entry_tags: tuple[NewEntryTag, ...] = ()
@@ -62,7 +60,6 @@ class NewTransaction:
     title: str
     description: str | None
     status: TransactionStatus
-    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -71,7 +68,6 @@ class TransactionChanges:
     effective_at: datetime
     title: str
     description: str | None
-    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -81,7 +77,6 @@ class CreateTransactionData:
     title: str
     description: str | None
     status: TransactionStatus
-    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -90,7 +85,6 @@ class UpdateTransactionData:
     effective_at: datetime
     title: str
     description: str | None
-    currency: str
     entries: tuple[NewEntry, ...]
 
 
@@ -102,6 +96,7 @@ class Entry:
     transaction_id: int
     ledger_account_id: int
     amount: Decimal
+    currency_id: int
     statement_closing_date: date | None
     statement_due_date: date | None
 
@@ -148,7 +143,7 @@ class TransactionLedgerAccountNotFoundError(Exception):
     pass
 
 
-class TransactionLedgerAccountCurrencyMismatchError(Exception):
+class TransactionEntryCurrencyNotFoundError(Exception):
     pass
 
 

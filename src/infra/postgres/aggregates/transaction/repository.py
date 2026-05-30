@@ -37,7 +37,6 @@ def _to_domain_transaction(
         title=transaction_record.title,
         description=transaction_record.description,
         status=transaction_record.status,
-        currency=transaction_record.currency,
     )
 
 
@@ -51,6 +50,7 @@ def _to_domain_entry(
         transaction_id=entry_record.transaction_id,
         ledger_account_id=entry_record.ledger_account_id,
         amount=entry_record.amount,
+        currency_id=entry_record.currency_id,
         statement_closing_date=entry_record.statement_closing_date,
         statement_due_date=entry_record.statement_due_date,
     )
@@ -108,7 +108,6 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
             effective_at=new_transaction.effective_at,
             title=new_transaction.title,
             description=new_transaction.description,
-            currency=new_transaction.currency,
         )
 
         self._session.add(transaction_record)
@@ -147,7 +146,6 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
             effective_at=changes.effective_at,
             title=changes.title,
             description=changes.description,
-            currency=changes.currency,
         )
         await self._session.flush()
 
@@ -164,22 +162,22 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
             entry_tag_records=entry_tag_records,
         )
 
-    async def mark_transaction_effective(
+    async def post_transaction(
         self,
         transaction_id: int,
     ) -> TransactionWithEntries:
         return await self._transition_transaction_status(
             transaction_id=transaction_id,
-            new_status=TransactionStatus.EFFECTIVE,
+            new_status=TransactionStatus.POSTED,
         )
 
-    async def cancel_transaction(
+    async def void_transaction(
         self,
         transaction_id: int,
     ) -> TransactionWithEntries:
         return await self._transition_transaction_status(
             transaction_id=transaction_id,
-            new_status=TransactionStatus.CANCELED,
+            new_status=TransactionStatus.VOIDED,
         )
 
     async def _replace_entries(
@@ -216,6 +214,7 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
             entry_record = EntryRecord()
             entry_record.transaction_id = transaction_id
             entry_record.ledger_account_id = new_entry.ledger_account_id
+            entry_record.currency_id = new_entry.currency_id
             entry_record.amount = new_entry.amount
             entry_record.statement_closing_date = new_entry.statement_closing_date
             entry_record.statement_due_date = new_entry.statement_due_date
@@ -358,9 +357,7 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
         effective_at,
         title: str,
         description: str | None,
-        currency,
     ) -> None:
         transaction_record.effective_at = effective_at
         transaction_record.title = title
         transaction_record.description = description
-        transaction_record.currency = currency

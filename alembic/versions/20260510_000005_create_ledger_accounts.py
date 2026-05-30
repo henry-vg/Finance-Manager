@@ -25,12 +25,11 @@ ledger_account_type_enum = postgresql.ENUM(
     create_type=False,
 )
 
-ledger_account_kind_enum = postgresql.ENUM(
+ledger_account_instrument_kind_enum = postgresql.ENUM(
     "BANK_ACCOUNT",
     "CREDIT_CARD",
     "WALLET",
-    "OTHER",
-    name="ledger_account_kind_enum",
+    name="ledger_account_instrument_kind_enum",
     create_type=False,
 )
 
@@ -39,15 +38,18 @@ def upgrade() -> None:
     bind = op.get_bind()
 
     ledger_account_type_enum.create(bind, checkfirst=True)
-    ledger_account_kind_enum.create(bind, checkfirst=True)
+    ledger_account_instrument_kind_enum.create(bind, checkfirst=True)
 
     op.create_table(
         "ledger_accounts",
         sa.Column("id", sa.Integer(), sa.Identity(), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("type", ledger_account_type_enum, nullable=False),
-        sa.Column("kind", ledger_account_kind_enum, nullable=False),
-        sa.Column("currency_iso_code", sa.String(length=3), nullable=False),
+        sa.Column(
+            "instrument_kind",
+            ledger_account_instrument_kind_enum,
+            nullable=True,
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -87,5 +89,5 @@ def downgrade() -> None:
     )
     op.drop_table("ledger_accounts")
 
-    ledger_account_kind_enum.drop(bind, checkfirst=True)
+    ledger_account_instrument_kind_enum.drop(bind, checkfirst=True)
     ledger_account_type_enum.drop(bind, checkfirst=True)

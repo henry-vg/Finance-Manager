@@ -1,7 +1,6 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
-
-from pydantic import Field
 
 from .base import ApiSchemaBase
 
@@ -14,25 +13,28 @@ class LedgerAccountTypeSchema(StrEnum):
     EQUITY = "equity"
 
 
-class LedgerAccountKindSchema(StrEnum):
+class LedgerAccountInstrumentKindSchema(StrEnum):
     BANK_ACCOUNT = "bank_account"
     CREDIT_CARD = "credit_card"
     WALLET = "wallet"
-    OTHER = "other"
+
+
+class LedgerAccountBalanceResponse(ApiSchemaBase):
+    currency_id: int
+    current_balance: Decimal
+    future_balance: Decimal
 
 
 class CreateLedgerAccountRequest(ApiSchemaBase):
     title: str
     type: LedgerAccountTypeSchema
-    kind: LedgerAccountKindSchema
-    currency_iso_code: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
+    instrument_kind: LedgerAccountInstrumentKindSchema | None = None
 
 
 class UpdateLedgerAccountRequest(ApiSchemaBase):
     title: str
     type: LedgerAccountTypeSchema
-    kind: LedgerAccountKindSchema
-    currency_iso_code: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
+    instrument_kind: LedgerAccountInstrumentKindSchema | None = None
 
 
 class LedgerAccountResponse(ApiSchemaBase):
@@ -41,5 +43,5 @@ class LedgerAccountResponse(ApiSchemaBase):
     updated_at: datetime
     title: str
     type: LedgerAccountTypeSchema
-    kind: LedgerAccountKindSchema
-    currency_iso_code: str
+    instrument_kind: LedgerAccountInstrumentKindSchema | None
+    balances: tuple[LedgerAccountBalanceResponse, ...] = ()
