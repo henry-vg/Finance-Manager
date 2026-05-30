@@ -75,7 +75,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Mapping files under `models/` are named after the physical table, while aggregate modules stay named after the domain concept. Example: `src/infra/postgres/aggregates/user/models/users.py` contains `UserRecord` for the `users` table.
 - Custom domain/application exceptions must use the `Error` suffix. Exceptions should communicate the layer they belong to: domain/application errors stay technology-agnostic, such as `UserNotFoundError` and `UserEmailConflictError`; technical persistence exceptions at the port boundary stay explicit, such as `UserEmailConflictOutputPortError`.
 - Enum representation depends on ownership. If a string value is part of an external contract, the boundary-owning layer should define it explicitly instead of leaking another layer's enum serialization.
-- Closed vocabularies owned by the core should stay enum-typed across the internal stack instead of degrading into loose strings in ports or persistence mappings. The current `LedgerAccount` decisions follow this rule for `type`, `kind` and `currency`.
+- Closed vocabularies owned by the core should stay enum-typed across the internal stack instead of degrading into loose strings in ports or persistence mappings. The current `LedgerAccount` decisions follow this rule for `type` and optional `instrument_kind`; ISO currency codes remain constrained validated strings owned by the currency catalog.
 - Prefer names that match the scope of the concern. Public endpoint slices may use established transport-oriented names, while narrower technical collaborators should use more precise local names when they describe an implementation detail rather than the public feature.
 - Keep behavior names, shared primitive names and transport concern names distinct. Prefer verbs for operations, neutral nouns for reusable core building blocks, and transport-oriented nouns for adapter-specific concerns.
 - When naming generic fallback or deterministic secondary behavior, prefer one stable shared prefix instead of mixing near-synonyms across the codebase. In the current codebase, `tie_break_*` is the canonical vocabulary for that kind of concern.
@@ -109,7 +109,7 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - Audit timestamps and `deleted_at` are database-owned. The application signals state changes; the database is responsible for writing the authoritative timestamps.
 - Soft-deleted rows are invisible to normal reads and updates. Hard delete must be an explicit opt-in behavior when the API or use case requires physical removal.
 - Constraint names should be stable and explicit when they carry business meaning, such as the unique email constraint on `users`.
-- When the database persists a core-owned closed vocabulary, prefer typed SQLAlchemy enums backed by native Postgres enums instead of unconstrained `VARCHAR` columns. The current `ledger_accounts.type`, `ledger_accounts.kind` and `ledger_accounts.currency` columns are the reference pattern.
+- When the database persists a core-owned closed vocabulary, prefer typed SQLAlchemy enums backed by native Postgres enums instead of unconstrained `VARCHAR` columns. The current `ledger_accounts.type` and optional `ledger_accounts.instrument_kind` columns are the reference pattern for core-owned vocabularies; `display_currency_iso_code` remains a constrained string that must reference the currency catalog.
 
 ### API and Mapping Rules
 
@@ -171,7 +171,16 @@ The codebase prefers explicit, boring names over clever indirection. The main go
 - New names should align with existing canonical vocabulary in the repository. When a concept already has an established prefix or suffix, reuse it instead of introducing a near-synonym.
 - Changes that affect public contracts, architectural conventions or cross-cutting rules should update the README in the same cycle.
 - Changes should leave behind focused tests for the touched behavior. Prefer the narrowest test that proves the decision, then rely on the broader suite as a safety net.
-- Cross-aggregate business invariants belong in the use case that owns the workflow, not in the HTTP route or repository. In the target financial model, the reference rule is the transaction write flow: invoice fields on an `Entry` only make sense when that entry points to a `LedgerAccount` with `type == LIABILITY` and `kind == CREDIT_CARD`, and that validation should live in the use case that owns the transactional write boundary.
+- Cross-aggregate business invariants belong in the use case that owns the workflow, not in the HTTP route or repository. In the target financial model, the reference rule is the transaction write flow: invoice fields on an `Entry` only make sense when that entry points to a `LedgerAccount` with `type == LIABILITY` and `instrument_kind == CREDIT_CARD`, and that validation should live in the use case that owns the transactional write boundary.
+
+### Financial Modeling Rules
+
+- `LedgerAccount.type` is the primary accounting classification.
+- `LedgerAccount.instrument_kind` is an optional operational classification. It is used only when the workflow depends on the represented instrument, such as credit-card invoice semantics.
+- `instrument_kind` must remain `None` when no instrument-specific behavior is needed; it does not replace `type`.
+- A transaction may transition only from `PENDING` to `POSTED` or `VOIDED`.
+- `POSTED` is an immutable accounting fact.
+- Correcting a `POSTED` transaction must happen through a new reversal transaction with opposite entries; the system must not support destructive `POSTED -> VOIDED`.
 
 
 ## How To Run Locally
