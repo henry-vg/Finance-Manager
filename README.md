@@ -54,9 +54,9 @@ The architectural boundaries are enforced by `pytestarch` tests in `tests/archit
 - Credit-card invoices are not persisted as their own aggregate in v1. An invoice is a projection over credit-card `Entry` records.
 - Invoice identity is factual on the `Entry`: `statement_closing_date` and `statement_due_date` belong to the entry when the entry represents credit-card liability.
 - `effective_at` remains the economic date of the transaction, but it does not define invoice membership by itself.
-- The current public CRUD surface is intentionally narrow: the currency catalog plus independent `LedgerAccount` and `Tag` flows.
+- The current public financial API surface is intentionally narrow: the currency catalog plus independent `LedgerAccount` and `Tag` flows, and a write-oriented `Transaction` flow.
 - `Entry` and `EntryTag` do not have independent CRUD in v1.
-- `Transaction` remains the aggregate root of the accounting event, but its public write flow must be introduced together with balanced subordinate `Entry` writes instead of as an isolated simple CRUD.
+- `Transaction` remains the aggregate root of the accounting event, and its public API currently exposes `GET /transaction/list`, `GET /transaction`, `POST`, `PUT`, `POST /transaction/post` and `POST /transaction/void`, always together with balanced subordinate `Entry` writes instead of as an isolated simple CRUD.
 - `Transaction` does not own a top-level currency in v1. Each `Entry` references the authoritative `currency_id` for its monetary value.
 - `LedgerAccount` does not own a fixed currency column. Read models expose `balances[]` grouped by `currency_id`.
 
