@@ -2,6 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from pydantic import Field
+
 from .base import ApiSchemaBase
 
 
@@ -26,13 +28,13 @@ class LedgerAccountBalanceResponse(ApiSchemaBase):
 
 
 class CreateLedgerAccountRequest(ApiSchemaBase):
-    title: str
+    title: str = Field(min_length=1)
     type: LedgerAccountTypeSchema
     instrument_kind: LedgerAccountInstrumentKindSchema | None = None
 
 
 class UpdateLedgerAccountRequest(ApiSchemaBase):
-    title: str
+    title: str = Field(min_length=1)
     type: LedgerAccountTypeSchema
     instrument_kind: LedgerAccountInstrumentKindSchema | None = None
 

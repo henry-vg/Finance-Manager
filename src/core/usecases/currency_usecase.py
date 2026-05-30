@@ -138,27 +138,24 @@ class CurrencyUseCase(CurrencyInputPort):
         hard_delete: bool = False,
     ) -> None:
         async with self._unit_of_work_output_port_factory() as unit_of_work:
-            if hard_delete:
-                current_currency = (
-                    await unit_of_work.currencies.get_currency_by_id_including_deleted(
-                        currency_id=currency_id,
-                    )
-                )
-            else:
-                current_currency = await unit_of_work.currencies.get_currency_by_id(
-                    currency_id=currency_id,
-                )
+            currencies = unit_of_work.currencies
+            get_currency = (
+                currencies.get_currency_by_id_including_deleted
+                if hard_delete
+                else currencies.get_currency_by_id
+            )
+            current_currency = await get_currency(currency_id=currency_id)
 
             if current_currency is None:
                 raise CurrencyNotFoundError()
 
             try:
                 if hard_delete:
-                    await unit_of_work.currencies.hard_delete_currency(
+                    await currencies.hard_delete_currency(
                         currency_id=currency_id,
                     )
                 else:
-                    await unit_of_work.currencies.soft_delete_currency(
+                    await currencies.soft_delete_currency(
                         currency_id=currency_id,
                     )
             except CurrencyNotFoundOutputPortError as exc:

@@ -23,6 +23,36 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
     ) -> None:
         self._unit_of_work_output_port_factory = unit_of_work_output_port_factory
 
+    @staticmethod
+    def _ensure_instrument_kind_allowed(
+        data: CreateLedgerAccountData | UpdateLedgerAccountData,
+    ) -> None:
+        if not can_assign_ledger_account_instrument_kind(
+            ledger_account_type=data.type,
+            instrument_kind=data.instrument_kind,
+        ):
+            raise LedgerAccountInstrumentKindNotAllowedError()
+
+    @staticmethod
+    def _to_new_ledger_account(
+        data: CreateLedgerAccountData,
+    ) -> NewLedgerAccount:
+        return NewLedgerAccount(
+            title=data.title,
+            type=data.type,
+            instrument_kind=data.instrument_kind,
+        )
+
+    @staticmethod
+    def _to_ledger_account_changes(
+        data: UpdateLedgerAccountData,
+    ) -> LedgerAccountChanges:
+        return LedgerAccountChanges(
+            title=data.title,
+            type=data.type,
+            instrument_kind=data.instrument_kind,
+        )
+
     async def list_ledger_accounts(
         self,
         list_query: ListQuery,
@@ -52,20 +82,13 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
         self,
         data: CreateLedgerAccountData,
     ) -> LedgerAccount:
-        async with self._unit_of_work_output_port_factory() as unit_of_work:
-            if not can_assign_ledger_account_instrument_kind(
-                ledger_account_type=data.type,
-                instrument_kind=data.instrument_kind,
-            ):
-                raise LedgerAccountInstrumentKindNotAllowedError()
+        self._ensure_instrument_kind_allowed(data)
+        new_ledger_account = self._to_new_ledger_account(data)
 
+        async with self._unit_of_work_output_port_factory() as unit_of_work:
             created_ledger_account = (
                 await unit_of_work.ledger_accounts.create_ledger_account(
-                    new_ledger_account=NewLedgerAccount(
-                        title=data.title,
-                        type=data.type,
-                        instrument_kind=data.instrument_kind,
-                    ),
+                    new_ledger_account=new_ledger_account,
                 )
             )
 
@@ -78,6 +101,9 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
         ledger_account_id: int,
         data: UpdateLedgerAccountData,
     ) -> LedgerAccount:
+        self._ensure_instrument_kind_allowed(data)
+        changes = self._to_ledger_account_changes(data)
+
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             current_ledger_account = (
                 await unit_of_work.ledger_accounts.get_ledger_account_by_id(
@@ -88,21 +114,11 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
             if current_ledger_account is None:
                 raise LedgerAccountNotFoundError()
 
-            if not can_assign_ledger_account_instrument_kind(
-                ledger_account_type=data.type,
-                instrument_kind=data.instrument_kind,
-            ):
-                raise LedgerAccountInstrumentKindNotAllowedError()
-
             try:
                 updated_ledger_account = (
                     await unit_of_work.ledger_accounts.update_ledger_account(
                         ledger_account_id=ledger_account_id,
-                        changes=LedgerAccountChanges(
-                            title=data.title,
-                            type=data.type,
-                            instrument_kind=data.instrument_kind,
-                        ),
+                        changes=changes,
                     )
                 )
             except LedgerAccountNotFoundOutputPortError as exc:
@@ -119,34 +135,28 @@ class LedgerAccountUseCase(LedgerAccountInputPort):
     ) -> None:
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             ledger_accounts = unit_of_work.ledger_accounts
-
-            if hard_delete:
-                current_ledger_account = (
-                    await ledger_accounts.get_ledger_account_by_id_including_deleted(
-                        ledger_account_id=ledger_account_id,
-                    )
-                )
-            else:
-                current_ledger_account = await ledger_accounts.get_ledger_account_by_id(
-                    ledger_account_id=ledger_account_id,
-                )
+            get_ledger_account = (
+                ledger_accounts.get_ledger_account_by_id_including_deleted
+                if hard_delete
+                else ledger_accounts.get_ledger_account_by_id
+            )
+            current_ledger_account = await get_ledger_account(
+                ledger_account_id=ledger_account_id,
+            )
 
             if current_ledger_account is None:
                 raise LedgerAccountNotFoundError()
 
-            if hard_delete:
-                try:
+            try:
+                if hard_delete:
                     await ledger_accounts.hard_delete_ledger_account(
                         ledger_account_id=ledger_account_id,
                     )
-                except LedgerAccountNotFoundOutputPortError as exc:
-                    raise LedgerAccountNotFoundError() from exc
-            else:
-                try:
+                else:
                     await ledger_accounts.soft_delete_ledger_account(
                         ledger_account_id=ledger_account_id,
                     )
-                except LedgerAccountNotFoundOutputPortError as exc:
-                    raise LedgerAccountNotFoundError() from exc
+            except LedgerAccountNotFoundOutputPortError as exc:
+                raise LedgerAccountNotFoundError() from exc
 
             await unit_of_work.commit()

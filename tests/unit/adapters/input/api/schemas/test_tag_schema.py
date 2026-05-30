@@ -1,7 +1,10 @@
 import json
 from datetime import UTC, datetime
 
-from src.adapters.input.api.schemas.tag_schema import TagResponse
+import pytest
+from pydantic import ValidationError
+
+from src.adapters.input.api.schemas.tag_schema import CreateTagRequest, TagResponse
 
 
 def test_tag_response_serializes_timestamp_fields() -> None:
@@ -20,3 +23,8 @@ def test_tag_response_serializes_timestamp_fields() -> None:
         "created_at": "2026-05-01T00:00:00.000Z",
         "updated_at": "2026-05-02T00:00:00.000Z",
     }
+
+
+def test_create_tag_request_rejects_blank_title() -> None:
+    with pytest.raises(ValidationError):
+        CreateTagRequest(title="")

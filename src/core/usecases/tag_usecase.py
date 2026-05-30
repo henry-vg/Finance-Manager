@@ -19,6 +19,22 @@ class TagUseCase(TagInputPort):
     ) -> None:
         self._unit_of_work_output_port_factory = unit_of_work_output_port_factory
 
+    @staticmethod
+    def _to_new_tag(
+        data: CreateTagData,
+    ) -> NewTag:
+        return NewTag(
+            title=data.title,
+        )
+
+    @staticmethod
+    def _to_tag_changes(
+        data: UpdateTagData,
+    ) -> TagChanges:
+        return TagChanges(
+            title=data.title,
+        )
+
     async def list_tags(
         self,
         list_query: ListQuery,
@@ -46,11 +62,11 @@ class TagUseCase(TagInputPort):
         self,
         data: CreateTagData,
     ) -> Tag:
+        new_tag = self._to_new_tag(data)
+
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             created_tag = await unit_of_work.tags.create_tag(
-                new_tag=NewTag(
-                    title=data.title,
-                ),
+                new_tag=new_tag,
             )
 
             await unit_of_work.commit()
@@ -62,6 +78,8 @@ class TagUseCase(TagInputPort):
         tag_id: int,
         data: UpdateTagData,
     ) -> Tag:
+        changes = self._to_tag_changes(data)
+
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             current_tag = await unit_of_work.tags.get_tag_by_id(
                 tag_id=tag_id,
@@ -73,9 +91,7 @@ class TagUseCase(TagInputPort):
             try:
                 updated_tag = await unit_of_work.tags.update_tag(
                     tag_id=tag_id,
-                    changes=TagChanges(
-                        title=data.title,
-                    ),
+                    changes=changes,
                 )
             except TagNotFoundOutputPortError as exc:
                 raise TagNotFoundError() from exc
@@ -90,31 +106,27 @@ class TagUseCase(TagInputPort):
         hard_delete: bool = False,
     ) -> None:
         async with self._unit_of_work_output_port_factory() as unit_of_work:
-            if hard_delete:
-                current_tag = await unit_of_work.tags.get_tag_by_id_including_deleted(
-                    tag_id=tag_id,
-                )
-            else:
-                current_tag = await unit_of_work.tags.get_tag_by_id(
-                    tag_id=tag_id,
-                )
+            tags = unit_of_work.tags
+            get_tag = (
+                tags.get_tag_by_id_including_deleted
+                if hard_delete
+                else tags.get_tag_by_id
+            )
+            current_tag = await get_tag(tag_id=tag_id)
 
             if current_tag is None:
                 raise TagNotFoundError()
 
-            if hard_delete:
-                try:
-                    await unit_of_work.tags.hard_delete_tag(
+            try:
+                if hard_delete:
+                    await tags.hard_delete_tag(
                         tag_id=tag_id,
                     )
-                except TagNotFoundOutputPortError as exc:
-                    raise TagNotFoundError() from exc
-            else:
-                try:
-                    await unit_of_work.tags.soft_delete_tag(
+                else:
+                    await tags.soft_delete_tag(
                         tag_id=tag_id,
                     )
-                except TagNotFoundOutputPortError as exc:
-                    raise TagNotFoundError() from exc
+            except TagNotFoundOutputPortError as exc:
+                raise TagNotFoundError() from exc
 
             await unit_of_work.commit()

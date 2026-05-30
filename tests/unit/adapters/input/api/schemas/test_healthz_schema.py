@@ -3,16 +3,16 @@ import json
 from src.adapters.input.api.schemas.healthz_schema import (
     GetHealthzReadinessDependencies,
     GetHealthzReadinessResponse,
-    HealthzStatusResponse,
+    HealthzStatusSchema,
 )
 
 
 def test_get_healthz_readiness_response_serializes_nested_status_values() -> None:
     response = GetHealthzReadinessResponse(
-        status=HealthzStatusResponse.OK,
+        status=HealthzStatusSchema.OK,
         dependencies=GetHealthzReadinessDependencies(
-            api=HealthzStatusResponse.OK,
-            database=HealthzStatusResponse.NOT_OK,
+            api=HealthzStatusSchema.OK,
+            database=HealthzStatusSchema.NOT_OK,
         ),
     )
 

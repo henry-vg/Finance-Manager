@@ -1,14 +1,16 @@
 from datetime import datetime
 
+from pydantic import Field
+
 from .base import ApiSchemaBase
 
 
 class CreateTagRequest(ApiSchemaBase):
-    title: str
+    title: str = Field(min_length=1)
 
 
 class UpdateTagRequest(ApiSchemaBase):
-    title: str
+    title: str = Field(min_length=1)
 
 
 class TagResponse(ApiSchemaBase):

@@ -2,6 +2,9 @@ import json
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+from pydantic import ValidationError
+
 from src.adapters.input.api.schemas.ledger_account_schema import (
     CreateLedgerAccountRequest,
     LedgerAccountBalanceResponse,
@@ -28,6 +31,14 @@ def test_create_ledger_account_request_allows_missing_instrument_kind() -> None:
     )
 
     assert payload.instrument_kind is None
+
+
+def test_create_ledger_account_request_rejects_blank_title() -> None:
+    with pytest.raises(ValidationError):
+        CreateLedgerAccountRequest(
+            title="",
+            type=LedgerAccountTypeSchema.ASSET,
+        )
 
 
 def test_ledger_account_response_serializes_balances() -> None:

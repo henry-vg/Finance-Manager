@@ -46,6 +46,29 @@ class TransactionUseCase(TransactionInputPort):
     ) -> None:
         self._unit_of_work_output_port_factory = unit_of_work_output_port_factory
 
+    @staticmethod
+    def _to_new_transaction(
+        data: CreateTransactionData,
+    ) -> NewTransaction:
+        return NewTransaction(
+            effective_at=data.effective_at,
+            title=data.title,
+            description=data.description,
+            status=data.status,
+            entries=data.entries,
+        )
+
+    @staticmethod
+    def _to_transaction_changes(
+        data: UpdateTransactionData,
+    ) -> TransactionChanges:
+        return TransactionChanges(
+            effective_at=data.effective_at,
+            title=data.title,
+            description=data.description,
+            entries=data.entries,
+        )
+
     async def _transition_transaction_status(
         self,
         *,
@@ -138,6 +161,60 @@ class TransactionUseCase(TransactionInputPort):
             if currency is None:
                 raise TransactionEntryCurrencyNotFoundError()
 
+    async def _validate_entries(
+        self,
+        *,
+        unit_of_work: UnitOfWorkOutputPort,
+        entries: tuple[NewEntry, ...],
+    ) -> None:
+        if len(entries) < 2:
+            raise TransactionMustHaveAtLeastTwoEntriesError()
+
+        if sum((entry.amount for entry in entries), start=Decimal("0")) != Decimal(
+            "0",
+        ):
+            raise TransactionEntriesMustBalanceError()
+
+        ledger_accounts = await self._load_ledger_accounts(
+            unit_of_work=unit_of_work,
+            entries=entries,
+        )
+        await self._ensure_tags_exist(
+            unit_of_work=unit_of_work,
+            entries=entries,
+        )
+        await self._ensure_entry_currencies_exist(
+            unit_of_work=unit_of_work,
+            entries=entries,
+        )
+
+        for entry in entries:
+            if len({entry_tag.tag_id for entry_tag in entry.entry_tags}) != len(
+                entry.entry_tags,
+            ):
+                raise TransactionEntryTagsMustBeUniqueError()
+
+            ledger_account = ledger_accounts[entry.ledger_account_id]
+
+            closing_date = entry.statement_closing_date
+            due_date = entry.statement_due_date
+
+            if (closing_date is None) != (due_date is None):
+                raise TransactionEntryStatementDatesMustBeProvidedTogetherError()
+
+            if closing_date is None or due_date is None:
+                continue
+
+            if not (
+                ledger_account.type == LedgerAccountType.LIABILITY
+                and ledger_account.instrument_kind
+                == LedgerAccountInstrumentKind.CREDIT_CARD
+            ):
+                raise TransactionEntryRequiresCreditCardLedgerAccountError()
+
+            if due_date <= closing_date:
+                raise TransactionEntryStatementDueDateMustBeAfterClosingDateError()
+
     async def list_transactions(
         self,
         list_query: ListQuery,
@@ -165,66 +242,16 @@ class TransactionUseCase(TransactionInputPort):
         self,
         data: CreateTransactionData,
     ) -> TransactionWithEntries:
+        new_transaction = self._to_new_transaction(data)
+
         async with self._unit_of_work_output_port_factory() as unit_of_work:
-            if len(data.entries) < 2:
-                raise TransactionMustHaveAtLeastTwoEntriesError()
-
-            if sum(
-                (entry.amount for entry in data.entries),
-                start=Decimal("0"),
-            ) != Decimal(
-                "0",
-            ):
-                raise TransactionEntriesMustBalanceError()
-
-            ledger_accounts = await self._load_ledger_accounts(
+            await self._validate_entries(
                 unit_of_work=unit_of_work,
                 entries=data.entries,
             )
-            await self._ensure_tags_exist(
-                unit_of_work=unit_of_work,
-                entries=data.entries,
-            )
-            await self._ensure_entry_currencies_exist(
-                unit_of_work=unit_of_work,
-                entries=data.entries,
-            )
-
-            for entry in data.entries:
-                if len({entry_tag.tag_id for entry_tag in entry.entry_tags}) != len(
-                    entry.entry_tags,
-                ):
-                    raise TransactionEntryTagsMustBeUniqueError()
-
-                ledger_account = ledger_accounts[entry.ledger_account_id]
-
-                closing_date = entry.statement_closing_date
-                due_date = entry.statement_due_date
-
-                if (closing_date is None) != (due_date is None):
-                    raise TransactionEntryStatementDatesMustBeProvidedTogetherError()
-
-                if closing_date is None or due_date is None:
-                    continue
-
-                if not (
-                    ledger_account.type == LedgerAccountType.LIABILITY
-                    and ledger_account.instrument_kind
-                    == LedgerAccountInstrumentKind.CREDIT_CARD
-                ):
-                    raise TransactionEntryRequiresCreditCardLedgerAccountError()
-
-                if due_date <= closing_date:
-                    raise TransactionEntryStatementDueDateMustBeAfterClosingDateError()
 
             created_transaction = await unit_of_work.transactions.create_transaction(
-                new_transaction=NewTransaction(
-                    effective_at=data.effective_at,
-                    title=data.title,
-                    description=data.description,
-                    status=data.status,
-                    entries=data.entries,
-                ),
+                new_transaction=new_transaction,
             )
 
             await unit_of_work.commit()
@@ -236,6 +263,8 @@ class TransactionUseCase(TransactionInputPort):
         transaction_id: int,
         data: UpdateTransactionData,
     ) -> TransactionWithEntries:
+        changes = self._to_transaction_changes(data)
+
         async with self._unit_of_work_output_port_factory() as unit_of_work:
             current_transaction = await unit_of_work.transactions.get_transaction_by_id(
                 transaction_id=transaction_id,
@@ -247,67 +276,16 @@ class TransactionUseCase(TransactionInputPort):
             if current_transaction.transaction.status != TransactionStatus.PENDING:
                 raise TransactionMustBePendingError()
 
-            if len(data.entries) < 2:
-                raise TransactionMustHaveAtLeastTwoEntriesError()
-
-            if sum(
-                (entry.amount for entry in data.entries),
-                start=Decimal("0"),
-            ) != Decimal(
-                "0",
-            ):
-                raise TransactionEntriesMustBalanceError()
-
-            ledger_accounts = await self._load_ledger_accounts(
+            await self._validate_entries(
                 unit_of_work=unit_of_work,
                 entries=data.entries,
             )
-            await self._ensure_tags_exist(
-                unit_of_work=unit_of_work,
-                entries=data.entries,
-            )
-            await self._ensure_entry_currencies_exist(
-                unit_of_work=unit_of_work,
-                entries=data.entries,
-            )
-
-            for entry in data.entries:
-                if len({entry_tag.tag_id for entry_tag in entry.entry_tags}) != len(
-                    entry.entry_tags,
-                ):
-                    raise TransactionEntryTagsMustBeUniqueError()
-
-                ledger_account = ledger_accounts[entry.ledger_account_id]
-
-                closing_date = entry.statement_closing_date
-                due_date = entry.statement_due_date
-
-                if (closing_date is None) != (due_date is None):
-                    raise TransactionEntryStatementDatesMustBeProvidedTogetherError()
-
-                if closing_date is None or due_date is None:
-                    continue
-
-                if not (
-                    ledger_account.type == LedgerAccountType.LIABILITY
-                    and ledger_account.instrument_kind
-                    == LedgerAccountInstrumentKind.CREDIT_CARD
-                ):
-                    raise TransactionEntryRequiresCreditCardLedgerAccountError()
-
-                if due_date <= closing_date:
-                    raise TransactionEntryStatementDueDateMustBeAfterClosingDateError()
 
             try:
                 updated_transaction = (
                     await unit_of_work.transactions.update_transaction(
                         transaction_id=transaction_id,
-                        changes=TransactionChanges(
-                            effective_at=data.effective_at,
-                            title=data.title,
-                            description=data.description,
-                            entries=data.entries,
-                        ),
+                        changes=changes,
                     )
                 )
             except TransactionNotFoundOutputPortError as exc:

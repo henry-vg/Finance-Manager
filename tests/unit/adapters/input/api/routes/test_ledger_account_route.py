@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from decimal import Decimal
 
 import httpx
@@ -7,20 +6,25 @@ from fastapi import FastAPI
 
 from src.adapters.input.api.routes.ledger_account_route import create_router
 from src.core.domain.ledger_account import (
-    CreateLedgerAccountData,
     LedgerAccount,
     LedgerAccountBalance,
     LedgerAccountInstrumentKind,
     LedgerAccountInstrumentKindNotAllowedError,
-    LedgerAccountNotFoundError,
     LedgerAccountType,
-    UpdateLedgerAccountData,
 )
-from src.core.shared import ListQuery, Page, SortDirection, SortTerm
-
-
-def _build_timestamp(day: int) -> datetime:
-    return datetime(2026, 5, day, tzinfo=UTC)
+from src.core.shared import ListQuery, SortDirection, SortTerm
+from tests.integration.fastapi.helpers.builders import (
+    build_ledger_account_create_payload,
+    build_ledger_account_response,
+    build_ledger_account_update_payload,
+    build_page_response,
+)
+from tests.integration.fastapi.helpers.stubs import (
+    LedgerAccountInputPortStub as _LedgerAccountInputPortStub,
+)
+from tests.integration.fastapi.helpers.stubs import (
+    build_timestamp as _build_timestamp,
+)
 
 
 def _build_balance(
@@ -34,107 +38,6 @@ def _build_balance(
         current_balance=Decimal(current_balance),
         future_balance=Decimal(future_balance),
     )
-
-
-class _LedgerAccountInputPortStub:
-    def __init__(self) -> None:
-        self.ledger_accounts_by_id: dict[int, LedgerAccount] = {}
-        self.soft_deleted_ledger_account_ids: set[int] = set()
-        self.delete_calls: list[tuple[int, bool]] = []
-        self.list_ledger_account_queries: list[ListQuery] = []
-        self.create_error: Exception | None = None
-        self.update_error: Exception | None = None
-        self._next_ledger_account_id = 1
-
-    async def list_ledger_accounts(
-        self,
-        list_query: ListQuery,
-    ) -> Page[LedgerAccount]:
-        self.list_ledger_account_queries.append(list_query)
-        active_ledger_accounts = [
-            ledger_account
-            for ledger_account_id, ledger_account in self.ledger_accounts_by_id.items()
-            if ledger_account_id not in self.soft_deleted_ledger_account_ids
-        ]
-        active_ledger_accounts.sort(
-            key=lambda ledger_account: (ledger_account.title, ledger_account.id),
-        )
-        return Page[LedgerAccount](
-            items=active_ledger_accounts[
-                list_query.offset : list_query.offset + list_query.limit
-            ],
-            offset=list_query.offset,
-            limit=list_query.limit,
-            total=len(active_ledger_accounts),
-        )
-
-    async def get_ledger_account(self, ledger_account_id: int) -> LedgerAccount:
-        if (
-            ledger_account_id in self.soft_deleted_ledger_account_ids
-            or ledger_account_id not in self.ledger_accounts_by_id
-        ):
-            raise LedgerAccountNotFoundError()
-
-        return self.ledger_accounts_by_id[ledger_account_id]
-
-    async def create_ledger_account(
-        self,
-        data: CreateLedgerAccountData,
-    ) -> LedgerAccount:
-        if self.create_error is not None:
-            raise self.create_error
-
-        ledger_account = LedgerAccount(
-            id=self._next_ledger_account_id,
-            title=data.title,
-            type=data.type,
-            instrument_kind=data.instrument_kind,
-            created_at=_build_timestamp(1),
-            updated_at=_build_timestamp(1),
-        )
-        self.ledger_accounts_by_id[ledger_account.id] = ledger_account
-        self._next_ledger_account_id += 1
-        return ledger_account
-
-    async def update_ledger_account(
-        self,
-        ledger_account_id: int,
-        data: UpdateLedgerAccountData,
-    ) -> LedgerAccount:
-        if self.update_error is not None:
-            raise self.update_error
-
-        current = await self.get_ledger_account(ledger_account_id)
-        updated = LedgerAccount(
-            id=current.id,
-            title=data.title,
-            type=data.type,
-            instrument_kind=data.instrument_kind,
-            balances=current.balances,
-            created_at=current.created_at,
-            updated_at=_build_timestamp(2),
-        )
-        self.ledger_accounts_by_id[ledger_account_id] = updated
-        return updated
-
-    async def delete_ledger_account(
-        self,
-        ledger_account_id: int,
-        hard_delete: bool = False,
-    ) -> None:
-        self.delete_calls.append((ledger_account_id, hard_delete))
-        if ledger_account_id in self.soft_deleted_ledger_account_ids:
-            if hard_delete:
-                self.soft_deleted_ledger_account_ids.remove(ledger_account_id)
-                self.ledger_accounts_by_id.pop(ledger_account_id, None)
-                return
-            raise LedgerAccountNotFoundError()
-        if ledger_account_id not in self.ledger_accounts_by_id:
-            raise LedgerAccountNotFoundError()
-        if hard_delete:
-            self.ledger_accounts_by_id.pop(ledger_account_id, None)
-            return
-        self.soft_deleted_ledger_account_ids.add(ledger_account_id)
 
 
 def _create_test_app(
@@ -176,21 +79,15 @@ async def test_get_ledger_account_returns_ledger_account_response() -> None:
         response = await client.get("/ledger-account", params={"id": 1})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "id": 1,
-        "created_at": "2026-05-01T00:00:00.000Z",
-        "updated_at": "2026-05-01T00:00:00.000Z",
-        "title": "Main Account",
-        "type": "asset",
-        "instrument_kind": "bank_account",
-        "balances": [
+    assert response.json() == build_ledger_account_response(
+        balances=[
             {
                 "currency_id": 1,
                 "current_balance": "100.00",
                 "future_balance": "150.00",
             },
         ],
-    }
+    )
 
 
 @pytest.mark.anyio
@@ -265,37 +162,27 @@ async def test_list_ledger_accounts_returns_paginated_response() -> None:
         )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "items": [
-            {
-                "id": 1,
-                "created_at": "2026-05-02T00:00:00.000Z",
-                "updated_at": "2026-05-02T00:00:00.000Z",
-                "title": "Credit Card",
-                "type": "liability",
-                "instrument_kind": "credit_card",
-                "balances": [
+    assert response.json() == build_page_response(
+        items=[
+            build_ledger_account_response(
+                created_at="2026-05-02T00:00:00.000Z",
+                updated_at="2026-05-02T00:00:00.000Z",
+                title="Credit Card",
+                type="liability",
+                instrument_kind="credit_card",
+                balances=[
                     {
                         "currency_id": 2,
                         "current_balance": "-2500.00",
                         "future_balance": "-2750.00",
                     },
                 ],
-            },
-            {
-                "id": 2,
-                "created_at": "2026-05-01T00:00:00.000Z",
-                "updated_at": "2026-05-01T00:00:00.000Z",
-                "title": "Main Account",
-                "type": "asset",
-                "instrument_kind": "bank_account",
-                "balances": [],
-            },
+            ),
+            build_ledger_account_response(id=2, balances=[]),
         ],
-        "offset": 0,
-        "limit": 10,
-        "total": 2,
-    }
+        limit=10,
+        total=2,
+    )
     assert ledger_account_input_port_stub.list_ledger_account_queries == [
         ListQuery(
             offset=0,
@@ -313,23 +200,11 @@ async def test_create_ledger_account_returns_created_response() -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/ledger-account",
-            json={
-                "title": "Main Account",
-                "type": "asset",
-                "instrument_kind": "bank_account",
-            },
+            json=build_ledger_account_create_payload(),
         )
 
     assert response.status_code == 201
-    assert response.json() == {
-        "id": 1,
-        "created_at": "2026-05-01T00:00:00.000Z",
-        "updated_at": "2026-05-01T00:00:00.000Z",
-        "title": "Main Account",
-        "type": "asset",
-        "instrument_kind": "bank_account",
-        "balances": [],
-    }
+    assert response.json() == build_ledger_account_response()
 
 
 @pytest.mark.anyio
@@ -347,7 +222,11 @@ async def test_create_ledger_account_allows_missing_instrument_kind() -> None:
         )
 
     assert response.status_code == 201
-    assert response.json()["instrument_kind"] is None
+    assert response.json() == build_ledger_account_response(
+        title="Salary",
+        type="income",
+        instrument_kind=None,
+    )
 
 
 @pytest.mark.anyio
@@ -362,11 +241,11 @@ async def test_create_ledger_account_returns_422_for_invalid_instrument_kind() -
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/ledger-account",
-            json={
-                "title": "Bad Expense",
-                "type": "expense",
-                "instrument_kind": "wallet",
-            },
+            json=build_ledger_account_create_payload(
+                title="Bad Expense",
+                type="expense",
+                instrument_kind="wallet",
+            ),
         )
 
     assert response.status_code == 422
@@ -385,11 +264,7 @@ async def test_update_ledger_account_returns_404_for_missing_ledger_account() ->
         response = await client.put(
             "/ledger-account",
             params={"id": 1},
-            json={
-                "title": "Credit Card",
-                "type": "liability",
-                "instrument_kind": "credit_card",
-            },
+            json=build_ledger_account_update_payload(),
         )
 
     assert response.status_code == 404
@@ -417,11 +292,11 @@ async def test_update_ledger_account_returns_422_for_invalid_instrument_kind() -
         response = await client.put(
             "/ledger-account",
             params={"id": 1},
-            json={
-                "title": "Bad Expense",
-                "type": "expense",
-                "instrument_kind": "wallet",
-            },
+            json=build_ledger_account_update_payload(
+                title="Bad Expense",
+                type="expense",
+                instrument_kind="wallet",
+            ),
         )
 
     assert response.status_code == 422

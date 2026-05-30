@@ -292,6 +292,33 @@ async def test_update_currency_translates_iso_code_conflict_output_port_error() 
 
 
 @pytest.mark.anyio
+async def test_update_currency_raises_for_blank_name() -> None:
+    currencies = _CurrencyOutputPortStub()
+    created = await currencies.create_currency(
+        NewCurrency(
+            iso_code="USD",
+            iso_numeric="840",
+            name="US Dollar",
+            symbol="$",
+            decimal_places=2,
+        ),
+    )
+    use_case = CurrencyUseCase(_UnitOfWorkFactoryStub(_UnitOfWorkStub(currencies)))
+
+    with pytest.raises(CurrencyDataValidationError):
+        await use_case.update_currency(
+            created.id,
+            UpdateCurrencyData(
+                iso_code="BRL",
+                iso_numeric="986",
+                name="   ",
+                symbol="R$",
+                decimal_places=2,
+            ),
+        )
+
+
+@pytest.mark.anyio
 async def test_delete_currency_soft_deletes_by_default() -> None:
     currencies = _CurrencyOutputPortStub()
     created = await currencies.create_currency(

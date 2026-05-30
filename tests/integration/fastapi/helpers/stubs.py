@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from src.core.domain.currency import (
     CreateCurrencyData,
@@ -72,12 +73,99 @@ def build_timestamp(
     )
 
 
+def build_transaction_with_entries(
+    *,
+    transaction_id: int = 1,
+    title: str = "Airline tickets",
+    description: str | None = "Family vacation purchase",
+    status: TransactionStatus = TransactionStatus.PENDING,
+    effective_at: datetime | None = None,
+    transaction_updated_at: datetime | None = None,
+    entry_one_amount: Decimal = Decimal("1200.00"),
+    entry_two_amount: Decimal = Decimal("-1200.00"),
+    first_entry_tag_ids: tuple[int, ...] = (10, 11),
+    entry_updated_at: datetime | None = None,
+) -> TransactionWithEntries:
+    effective_at = effective_at or build_timestamp(11)
+    transaction_updated_at = transaction_updated_at or build_timestamp(1)
+    entry_updated_at = entry_updated_at or build_timestamp(1)
+
+    return TransactionWithEntries(
+        transaction=Transaction(
+            id=transaction_id,
+            created_at=build_timestamp(1),
+            updated_at=transaction_updated_at,
+            effective_at=effective_at,
+            title=title,
+            description=description,
+            status=status,
+        ),
+        entries=(
+            EntryWithTags(
+                entry=Entry(
+                    id=100,
+                    created_at=build_timestamp(1),
+                    updated_at=entry_updated_at,
+                    transaction_id=transaction_id,
+                    ledger_account_id=1,
+                    amount=entry_one_amount,
+                    currency_id=1,
+                    statement_closing_date=None,
+                    statement_due_date=None,
+                ),
+                entry_tags=tuple(
+                    EntryTag(entry_id=100, tag_id=tag_id)
+                    for tag_id in first_entry_tag_ids
+                ),
+            ),
+            EntryWithTags(
+                entry=Entry(
+                    id=101,
+                    created_at=build_timestamp(1),
+                    updated_at=entry_updated_at,
+                    transaction_id=transaction_id,
+                    ledger_account_id=2,
+                    amount=entry_two_amount,
+                    currency_id=1,
+                    statement_closing_date=date(2026, 5, 31),
+                    statement_due_date=date(2026, 6, 10),
+                ),
+                entry_tags=(),
+            ),
+        ),
+    )
+
+
+def _sort_models[ModelT](
+    items: list[ModelT],
+    sort_terms: tuple[SortTerm, ...],
+    *,
+    default_sort_terms: tuple[SortTerm, ...],
+    tie_breaker_terms: tuple[SortTerm, ...],
+) -> list[ModelT]:
+    sorted_items = list(items)
+    sort_chain = (
+        *(sort_terms or default_sort_terms),
+        *tie_breaker_terms,
+    )
+
+    for sort_term in reversed(sort_chain):
+        sorted_items.sort(
+            key=lambda item: getattr(item, sort_term.field),
+            reverse=sort_term.direction == SortDirection.DESC,
+        )
+
+    return sorted_items
+
+
 class CurrencyInputPortStub(CurrencyInputPort):
     def __init__(self) -> None:
         self.currencies_by_id: dict[int, Currency] = {}
         self.soft_deleted_currency_ids: set[int] = set()
         self.delete_calls: list[tuple[int, bool]] = []
         self.list_currency_queries: list[ListQuery] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
         self._next_currency_id = 1
 
     async def list_currencies(
@@ -90,7 +178,12 @@ class CurrencyInputPortStub(CurrencyInputPort):
             for currency_id, currency in self.currencies_by_id.items()
             if currency_id not in self.soft_deleted_currency_ids
         ]
-        active_currencies.sort(key=lambda currency: currency.id)
+        active_currencies = _sort_models(
+            active_currencies,
+            list_query.sort,
+            default_sort_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+            tie_breaker_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+        )
 
         return Page[Currency](
             items=active_currencies[
@@ -117,6 +210,9 @@ class CurrencyInputPortStub(CurrencyInputPort):
         self,
         data: CreateCurrencyData,
     ) -> Currency:
+        if self.create_error is not None:
+            raise self.create_error
+
         currency = Currency(
             id=self._next_currency_id,
             iso_code=data.iso_code,
@@ -136,6 +232,9 @@ class CurrencyInputPortStub(CurrencyInputPort):
         currency_id: int,
         data: UpdateCurrencyData,
     ) -> Currency:
+        if self.update_error is not None:
+            raise self.update_error
+
         current = await self.get_currency(currency_id)
         updated = Currency(
             id=current.id,
@@ -200,6 +299,8 @@ class LedgerAccountInputPortStub(LedgerAccountInputPort):
         self.soft_deleted_ledger_account_ids: set[int] = set()
         self.delete_calls: list[tuple[int, bool]] = []
         self.list_ledger_account_queries: list[ListQuery] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
         self._next_ledger_account_id = 1
 
     async def list_ledger_accounts(
@@ -212,7 +313,12 @@ class LedgerAccountInputPortStub(LedgerAccountInputPort):
             for ledger_account_id, ledger_account in self.ledger_accounts_by_id.items()
             if ledger_account_id not in self.soft_deleted_ledger_account_ids
         ]
-        active_ledger_accounts.sort(key=lambda ledger_account: ledger_account.id)
+        active_ledger_accounts = _sort_models(
+            active_ledger_accounts,
+            list_query.sort,
+            default_sort_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+            tie_breaker_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+        )
         return Page[LedgerAccount](
             items=active_ledger_accounts[
                 list_query.offset : list_query.offset + list_query.limit
@@ -237,6 +343,9 @@ class LedgerAccountInputPortStub(LedgerAccountInputPort):
         self,
         data: CreateLedgerAccountData,
     ) -> LedgerAccount:
+        if self.create_error is not None:
+            raise self.create_error
+
         ledger_account = LedgerAccount(
             id=self._next_ledger_account_id,
             title=data.title,
@@ -254,6 +363,9 @@ class LedgerAccountInputPortStub(LedgerAccountInputPort):
         ledger_account_id: int,
         data: UpdateLedgerAccountData,
     ) -> LedgerAccount:
+        if self.update_error is not None:
+            raise self.update_error
+
         current = await self.get_ledger_account(ledger_account_id)
         updated = LedgerAccount(
             id=current.id,
@@ -292,6 +404,8 @@ class TagInputPortStub(TagInputPort):
         self.soft_deleted_tag_ids: set[int] = set()
         self.delete_calls: list[tuple[int, bool]] = []
         self.list_tag_queries: list[ListQuery] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
         self._next_tag_id = 1
 
     async def list_tags(self, list_query: ListQuery) -> Page[Tag]:
@@ -301,7 +415,12 @@ class TagInputPortStub(TagInputPort):
             for tag_id, tag in self.tags_by_id.items()
             if tag_id not in self.soft_deleted_tag_ids
         ]
-        active_tags.sort(key=lambda tag: tag.id)
+        active_tags = _sort_models(
+            active_tags,
+            list_query.sort,
+            default_sort_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+            tie_breaker_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+        )
         return Page[Tag](
             items=active_tags[list_query.offset : list_query.offset + list_query.limit],
             offset=list_query.offset,
@@ -315,6 +434,9 @@ class TagInputPortStub(TagInputPort):
         return self.tags_by_id[tag_id]
 
     async def create_tag(self, data: CreateTagData) -> Tag:
+        if self.create_error is not None:
+            raise self.create_error
+
         tag = Tag(
             id=self._next_tag_id,
             title=data.title,
@@ -326,6 +448,9 @@ class TagInputPortStub(TagInputPort):
         return tag
 
     async def update_tag(self, tag_id: int, data: UpdateTagData) -> Tag:
+        if self.update_error is not None:
+            raise self.update_error
+
         current = await self.get_tag(tag_id)
         updated = Tag(
             id=current.id,
@@ -356,6 +481,8 @@ class TransactionInputPortStub(TransactionInputPort):
     def __init__(self) -> None:
         self.list_transaction_queries: list[ListQuery] = []
         self.transactions_by_id: dict[int, TransactionWithEntries] = {}
+        self.create_calls: list[CreateTransactionData] = []
+        self.update_calls: list[tuple[int, UpdateTransactionData]] = []
         self.post_calls: list[int] = []
         self.void_calls: list[int] = []
         self.create_error: Exception | None = None
@@ -374,7 +501,12 @@ class TransactionInputPortStub(TransactionInputPort):
             transaction_with_entries.transaction
             for transaction_with_entries in self.transactions_by_id.values()
         ]
-        transactions.sort(key=lambda transaction: transaction.id)
+        transactions = _sort_models(
+            transactions,
+            list_query.sort,
+            default_sort_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+            tie_breaker_terms=(SortTerm(field="id", direction=SortDirection.ASC),),
+        )
 
         return Page[Transaction](
             items=transactions[
@@ -475,6 +607,8 @@ class TransactionInputPortStub(TransactionInputPort):
         self,
         data: CreateTransactionData,
     ) -> TransactionWithEntries:
+        self.create_calls.append(data)
+
         if self.create_error is not None:
             raise self.create_error
 
@@ -497,6 +631,8 @@ class TransactionInputPortStub(TransactionInputPort):
         transaction_id: int,
         data: UpdateTransactionData,
     ) -> TransactionWithEntries:
+        self.update_calls.append((transaction_id, data))
+
         if self.update_error is not None:
             raise self.update_error
 
@@ -583,28 +719,22 @@ def _sort_users(
     users: list[User],
     sort_terms: tuple[SortTerm, ...],
 ) -> list[User]:
-    sorted_users = list(users)
-    effective_sort_terms = sort_terms or (
-        SortTerm(
-            field="created_at",
-            direction=SortDirection.DESC,
+    return _sort_models(
+        users,
+        sort_terms,
+        default_sort_terms=(
+            SortTerm(
+                field="created_at",
+                direction=SortDirection.DESC,
+            ),
+        ),
+        tie_breaker_terms=(
+            SortTerm(
+                field="id",
+                direction=SortDirection.DESC,
+            ),
         ),
     )
-    sort_chain = (
-        *effective_sort_terms,
-        SortTerm(
-            field="id",
-            direction=SortDirection.DESC,
-        ),
-    )
-
-    for sort_term in reversed(sort_chain):
-        sorted_users.sort(
-            key=lambda user: getattr(user, sort_term.field),
-            reverse=sort_term.direction == SortDirection.DESC,
-        )
-
-    return sorted_users
 
 
 class UserInputPortStub(UserInputPort):
@@ -613,6 +743,8 @@ class UserInputPortStub(UserInputPort):
         self.soft_deleted_emails: set[str] = set()
         self.delete_calls: list[tuple[str, bool]] = []
         self.list_user_queries: list[ListQuery] = []
+        self.create_error: Exception | None = None
+        self.update_error: Exception | None = None
         self._next_user_id = 1
 
     async def list_users(
@@ -656,6 +788,9 @@ class UserInputPortStub(UserInputPort):
         self,
         data: CreateUserData,
     ) -> User:
+        if self.create_error is not None:
+            raise self.create_error
+
         if any(
             existing_user.email == data.email
             for existing_user in self.users_by_email.values()
@@ -698,6 +833,9 @@ class UserInputPortStub(UserInputPort):
         current_email: str,
         data: UpdateUserData,
     ) -> User:
+        if self.update_error is not None:
+            raise self.update_error
+
         if current_email in self.soft_deleted_emails:
             raise UserNotFoundError()
 
