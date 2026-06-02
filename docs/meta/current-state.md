@@ -44,8 +44,3 @@ O MVP atual já entrega uma API backend funcional com arquitetura hexagonal expl
 - Nesta revisão, não foi identificada lacuna crítica de documentação em `.cursor/` ou `docs/`.
 - A barra executável de qualidade continua sendo Ruff, MyPy, cobertura total e branch coverage.
 - Na validação desta revisão, `make run-tests-with-coverage` executou 405 testes, mas falhou a barra de coverage com `99.62%`; os misses reportados ficaram em `src/core/usecases/transaction_usecase.py` e `src/infra/postgres/aggregates/transaction/repository.py`.
-
-## Próximo marco sugerido
-
-1. Fechar o gap de coverage no slice de transaction.
-2. Depois, planejar a substituição do mock de câmbio por provider real, com ADR própria.
