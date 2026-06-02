@@ -25,7 +25,7 @@ Uma `Transaction` representa um evento contábil. Ela não carrega um valor pró
 
 ### Entry
 
-Uma `Entry` é o efeito de uma transação sobre um saldo. Cada entry possui `ledger_account_id`, `currency_id` e `amount` assinado. Em uma mesma transação, a soma dos valores das entries deve ser sempre zero.
+Uma `Entry` é o efeito de uma transação sobre um saldo. No contrato de escrita, cada entry recebe `ledger_account_id`, `currency_id` e `amount` assinado na moeda de origem. A aplicação resolve `amount_in_dollars` internamente para balanceamento contábil e persistência. Em uma mesma transação, o balanceamento contábil atual precisa zerar em dólar.
 
 ### Tag
 
@@ -68,6 +68,7 @@ Essa separação permite evoluir regras de negócio com baixo acoplamento, mante
 ```text
 Finance-Manager/
 |-- alembic/               # migrações de banco de dados
+|-- docs/                  # documentação técnica interna e de longa duração
 |-- docker/                # setup de containers de desenvolvimento e produção
 |-- logs/                  # arquivos de log da aplicação
 |-- src/
@@ -80,28 +81,9 @@ Finance-Manager/
 |   `-- unit/              # testes isolados por módulo
 |-- Makefile               # comandos principais de execução e validação
 |-- README.md              # apresentação pública do projeto
-|-- instructions.md        # contexto técnico aprofundado para IA e contribuição
-`-- notes.md               # anotações pessoais do mantenedor
 ```
 
-## Estilo de código e desenvolvimento
-
-O projeto privilegia clareza, nomes explícitos e uma divisão de responsabilidade previsível entre camadas.
-
-- regras de negócio ficam no core, não nas rotas HTTP nem na persistência
-- casos de uso orquestram fluxos, validações e fronteiras transacionais
-- rotas HTTP devem ser finas: validar entrada, chamar input ports e mapear resposta/erro
-- mapeamentos e conversões importantes devem ser explícitos, sem magia escondida
-- novas abstrações compartilhadas só entram quando há ganho real de legibilidade e reuse
-- alterações de contrato público ou convenções relevantes devem atualizar a documentação no mesmo ciclo
-
-O projeto também mantém uma barra alta de qualidade:
-
-- cobertura obrigatoria de `100%` sobre `src/`
-- testes unitários, de integração e de arquitetura separados por superfície
-- validação estática com Ruff e MyPy
-
-Para contexto técnico completo de arquitetura, nomenclatura, padrões de implementação e convenções de teste, consulte `instructions.md`.
+Para contexto técnico completo de arquitetura, domínio, API, persistência, testes e operação, consulte `docs/README.md`.
 
 ## Como rodar localmente
 
@@ -180,9 +162,3 @@ Se quiser validar tudo no mesmo ciclo, a sequência recomendada é:
 make run-quality-check
 make run-tests-with-coverage
 ```
-
-## Papéis dos arquivos de documentação
-
-- `README.md`: apresenta o projeto para visitantes, usuários da API e novos contribuidores
-- `instructions.md`: concentra o contexto técnico detalhado para desenvolvimento especializado e ferramentas de IA
-- `notes.md`: é um arquivo pessoal do mantenedor e não deve ser tratado como documentação oficial do projeto

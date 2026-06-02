@@ -1,0 +1,15 @@
+---
+globs: src/infra/postgres/**/*.py, alembic/**/*.py
+alwaysApply: false
+---
+
+# Persistência Postgres e migrations
+
+- A organização de `src/infra/postgres/aggregates/` é orientada a aggregate: uma pasta por aggregate, modelos físicos em `models/` e repositório em `repository.py`.
+- Repositórios são session-bound: podem usar `flush()` e `refresh()`, mas não fazem `commit()` nem `rollback()`.
+- A fronteira transacional pertence ao use case por meio do Unit of Work.
+- `PostgresPersistedRecordMixin` centraliza `id`, `created_at`, `updated_at`, `is_deleted` e `deleted_at`; preserve essa convenção.
+- Soft delete continua sendo o comportamento padrão; hard delete deve ser opt-in explícito.
+- Migrations em `alembic/versions/` devem manter cadeia monótona simples, nomes claros e validação por `alembic upgrade head`.
+- Backfills e seeds precisam ser determinísticos e autocontidos; não dependa de código de runtime ou chamadas externas para popular dados históricos.
+- Ao tocar a persistência de transaction, preserve o shape atual de `entries`: `currency_id`, `amount_in_dollars`, snapshots cambiais e datas factuais de fatura.

@@ -1,0 +1,10 @@
+---
+globs: src/**/*.py, tests/**/*.py
+alwaysApply: false
+---
+
+# Padrões de código e preferências
+
+- Use `docs/architecture/code-patterns-and-preferences.md` como referência canônica para nomenclatura e preferências de implementação.
+- Prefira nomes explícitos com sufixos canônicos como `*UseCase`, `*InputPort`, `*OutputPort`, `*Record`, `*Stub` e `*Error`.
+- Mantenha mapeamentos explícitos, mudanças pequenas e regra de negócio no lugar certo da arquitetura.

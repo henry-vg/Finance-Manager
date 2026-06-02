@@ -1,0 +1,14 @@
+---
+globs: tests/**/*.py, Makefile, pyproject.toml
+alwaysApply: false
+---
+
+# Testes, qualidade e validação
+
+- A estrutura da suíte é intencional: `tests/unit/`, `tests/integration/fastapi/`, `tests/integration/postgres/` e `tests/architecture/`.
+- Use nomes de teste comportamentais e mantenha profundidade semelhante entre suítes análogas.
+- Prefira `Stub` para doubles fixos e reutilize os helpers compartilhados em `tests/integration/fastapi/helpers/` e `tests/integration/postgres/helpers/`.
+- A barra de qualidade atual é executável: cobertura total e branch coverage em `src`, Ruff e MyPy.
+- Comandos canônicos: `make run-tests`, `make run-tests-with-coverage` e `make run-quality-check`.
+- Ao finalizar mudanças de código, rode primeiro a validação mais focada possível e só depois amplie escopo.
+- Não reduza cobertura para acomodar mudanças. Se a regra mudou, ajuste testes e documentação junto.

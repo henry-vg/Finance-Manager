@@ -1,0 +1,15 @@
+---
+globs: src/core/domain/transaction.py, src/core/usecases/transaction_usecase.py, src/adapters/input/api/routes/transaction_route.py, src/adapters/input/api/schemas/transaction_schema.py, src/infra/postgres/aggregates/transaction/**/*.py, tests/**/*transaction*.py
+alwaysApply: false
+---
+
+# Semântica atual de transaction
+
+- `Transaction` continua sendo o evento contábil; `Entry` continua sendo o efeito sobre saldos.
+- No contrato de escrita, a entry recebe `amount` na moeda de origem e `currency_id`.
+- A aplicação resolve `amount_in_dollars` internamente via taxa de câmbio; request de escrita não recebe `amount_in_dollars`.
+- A persistência e as responses de leitura expõem `amount_in_dollars`, `planned_exchange_rate_to_dollars` e `posting_exchange_rate_to_dollars`; o `amount` original não é persistido.
+- `PENDING` significa “ainda não postada”; `POSTED` e `VOIDED` continuam terminais.
+- O balanceamento da transação é validado em dólar, não pelo `amount` original.
+- `post_transaction(...)` recalcula o valor-base com a taxa final de posting; não reintroduza persistência do `amount` original para resolver isso.
+- As regras detalhadas e o racional desta assimetria estão em `docs/domain/transactions.md`.
