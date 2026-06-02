@@ -5,6 +5,7 @@ alwaysApply: false
 
 # Persistência Postgres e migrations
 
+- Use `docs/persistence/postgres-and-migrations.md` como referência canônica para organização por aggregate, Unit of Work e regras de migration.
 - A organização de `src/infra/postgres/aggregates/` é orientada a aggregate: uma pasta por aggregate, modelos físicos em `models/` e repositório em `repository.py`.
 - Repositórios são session-bound: podem usar `flush()` e `refresh()`, mas não fazem `commit()` nem `rollback()`.
 - A fronteira transacional pertence ao use case por meio do Unit of Work.

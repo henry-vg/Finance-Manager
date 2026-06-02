@@ -5,6 +5,7 @@ alwaysApply: false
 
 # Convenções dos adapters HTTP
 
+- Use `docs/api/http-conventions.md` como referência canônica para rotas, paginação, contratos públicos e semântica de erro.
 - Rotas e schemas HTTP dependem de input ports; não importe use cases concretos em adapters de entrada.
 - Handlers devem ser finos: validar entrada, chamar o input port, mapear resposta e traduzir erros conhecidos.
 - Mantenha a conversão entre schema HTTP e tipos do core explícita.

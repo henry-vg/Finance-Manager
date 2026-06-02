@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+
+# Workflow obrigatório para agentes
+
+## Antes de alterar
+
+- Comece por `docs/meta/project-context.md` e `docs/meta/current-state.md`; depois leia a página temática relevante via `docs/README.md`.
+- Identifique a causa raiz antes de propor solução.
+- Prefira a menor mudança correta e não misture refactor amplo com correção funcional.
+- Preserve a arquitetura hexagonal atual; não altere boundaries, contratos públicos, migrations ou semântica monetária sem explicitar o motivo.
+- Preserve padrões existentes de nomes, testes, fixtures, helpers e estrutura de pastas.
+
+## Quando alterar comportamento existente
+
+1. Identifique os documentos canônicos afetados.
+2. Atualize esses documentos na mesma alteração.
+3. Não deixe documentação inconsistente com código.
+4. Se a mudança for durável, considere criar ADR em `docs/adr/`.
+
+## Snapshot do estado atual
+
+- `docs/meta/current-state.md` representa um snapshot do repositório.
+- Atualize esse arquivo quando coverage mudar significativamente, milestones forem concluídos ou limitações conhecidas mudarem.
+
+## Antes de encerrar
+
+- Atualize testes quando a mudança tocar comportamento executável e atualize documentação quando mudar decisão durável, regra de negócio, contrato ou workflow.
+- Rode primeiro a validação mais focada possível e amplie escopo só quando a mudança justificar.
+- Ao encerrar, resuma o que mudou, riscos, validações executadas e pendências.

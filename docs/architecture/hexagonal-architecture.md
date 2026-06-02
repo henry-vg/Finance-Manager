@@ -29,6 +29,8 @@ A referência executável é `tests/architecture/test_boundaries.py`. As regras 
 - `adapters` não importam `infra`.
 - `adapters.input` não importam `core.usecases`.
 - `adapters.output` não importam `core.usecases` nem `adapters.input`.
+- `infra.settings` e `infra.logging` não importam `adapters`.
+- `infra.bootstrap`, `infra.main` e `infra.postgres` não importam `adapters`.
 - `infra.fastapi` não importa `adapters.output`.
 - `core.shared` não importa `adapters` nem `infra`.
 

@@ -5,6 +5,7 @@ alwaysApply: false
 
 # Testes, qualidade e validação
 
+- Use `docs/testing/quality-and-structure.md` como referência canônica para estrutura da suíte, helpers compartilhados e barra de qualidade.
 - A estrutura da suíte é intencional: `tests/unit/`, `tests/integration/fastapi/`, `tests/integration/postgres/` e `tests/architecture/`.
 - Use nomes de teste comportamentais e mantenha profundidade semelhante entre suítes análogas.
 - Prefira `Stub` para doubles fixos e reutilize os helpers compartilhados em `tests/integration/fastapi/helpers/` e `tests/integration/postgres/helpers/`.
