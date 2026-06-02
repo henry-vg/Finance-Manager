@@ -29,3 +29,31 @@ alwaysApply: true
 - Atualize testes quando a mudança tocar comportamento executável e atualize documentação quando mudar decisão durável, regra de negócio, contrato ou workflow.
 - Rode primeiro a validação mais focada possível e amplie escopo só quando a mudança justificar.
 - Ao encerrar, resuma o que mudou, riscos, validações executadas e pendências.
+
+## Controle de Git
+
+O agente nunca deve:
+
+- executar `git commit`
+- executar `git push`
+- executar `git merge`
+- executar `git rebase`
+- executar `git tag`
+- criar Pull Requests
+
+O agente pode:
+
+- modificar arquivos
+- criar arquivos
+- remover arquivos
+- executar testes
+- executar validações
+
+Toda operação de versionamento deve ser realizada exclusivamente pelo usuário.
+
+Ao finalizar uma tarefa, apresente:
+- arquivos alterados
+- resumo das mudanças
+- comandos sugeridos
+
+Mas não execute comandos Git que alterem o histórico.
