@@ -73,6 +73,7 @@ def build_application_container() -> ApplicationContainer:
         ),
         transaction_input_port=TransactionUseCase(
             unit_of_work_output_port_factory=unit_of_work_output_port_factory,
+            exchange_rate_output_port=exchange_rate_output_port,
         ),
         user_input_port=UserUseCase(
             unit_of_work_output_port_factory=unit_of_work_output_port_factory,

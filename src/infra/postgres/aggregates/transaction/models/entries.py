@@ -23,9 +23,17 @@ class EntryRecord(PostgresPersistedRecordMixin):
         ForeignKey("currencies.id"),
         nullable=False,
     )
-    amount: Mapped[Decimal] = mapped_column(
+    amount_in_dollars: Mapped[Decimal] = mapped_column(
         Numeric(asdecimal=True),
         nullable=False,
+    )
+    planned_exchange_rate_to_dollars: Mapped[Decimal] = mapped_column(
+        Numeric(asdecimal=True),
+        nullable=False,
+    )
+    posting_exchange_rate_to_dollars: Mapped[Decimal | None] = mapped_column(
+        Numeric(asdecimal=True),
+        nullable=True,
     )
     statement_closing_date: Mapped[date | None] = mapped_column(
         Date(),

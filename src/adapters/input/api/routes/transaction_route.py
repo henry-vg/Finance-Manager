@@ -22,6 +22,7 @@ from src.core.domain.transaction import (
     Transaction,
     TransactionEntriesMustBalanceError,
     TransactionEntryCurrencyNotFoundError,
+    TransactionEntryExchangeRateUnavailableError,
     TransactionEntryRequiresCreditCardLedgerAccountError,
     TransactionEntryStatementDatesMustBeProvidedTogetherError,
     TransactionEntryStatementDueDateMustBeAfterClosingDateError,
@@ -78,6 +79,7 @@ def _to_new_entry(
     return NewEntry(
         ledger_account_id=entry.ledger_account_id,
         amount=entry.amount,
+        amount_in_dollars=None,
         currency_id=entry.currency_id,
         statement_closing_date=entry.statement_closing_date,
         statement_due_date=entry.statement_due_date,
@@ -109,8 +111,10 @@ def _to_transaction_entry_response(
         updated_at=entry.updated_at,
         transaction_id=entry.transaction_id,
         ledger_account_id=entry.ledger_account_id,
-        amount=entry.amount,
+        amount_in_dollars=entry.amount_in_dollars,
         currency_id=entry.currency_id,
+        planned_exchange_rate_to_dollars=entry.planned_exchange_rate_to_dollars,
+        posting_exchange_rate_to_dollars=entry.posting_exchange_rate_to_dollars,
         statement_closing_date=entry.statement_closing_date,
         statement_due_date=entry.statement_due_date,
     )
@@ -217,6 +221,11 @@ def create_router(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail="Transaction entry currency was not found.",
     )
+    transaction_entry_exchange_rate_unavailable_translation = HTTPExceptionTranslation(
+        exception_type=TransactionEntryExchangeRateUnavailableError,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail="Transaction entry exchange rate is unavailable.",
+    )
     transaction_tag_not_found_translation = HTTPExceptionTranslation(
         exception_type=TransactionTagNotFoundError,
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -257,6 +266,7 @@ def create_router(
         transaction_entries_must_balance_translation,
         transaction_ledger_account_not_found_translation,
         transaction_entry_currency_not_found_translation,
+        transaction_entry_exchange_rate_unavailable_translation,
         transaction_tag_not_found_translation,
         transaction_entry_tags_must_be_unique_translation,
         transaction_entry_statement_dates_must_be_provided_together_translation,
@@ -449,7 +459,10 @@ def create_router(
                 "description": "The current transaction state does not allow posting.",
             },
             422: {
-                "description": "The required id query parameter failed validation.",
+                "description": (
+                    "- The required id query parameter failed validation.\n"
+                    "- The transaction violated one or more business rules."
+                ),
             },
         },
         summary="Post Transaction",
@@ -464,6 +477,9 @@ def create_router(
         with translate_exceptions_to_http(
             transaction_not_found_translation,
             transaction_status_transition_not_allowed_translation,
+            transaction_entries_must_balance_translation,
+            transaction_entry_currency_not_found_translation,
+            transaction_entry_exchange_rate_unavailable_translation,
         ):
             transaction = await transaction_input_port.post_transaction(
                 transaction_id=id,

@@ -61,8 +61,14 @@ def _to_domain_entry(
         updated_at=entry_record.updated_at,
         transaction_id=entry_record.transaction_id,
         ledger_account_id=entry_record.ledger_account_id,
-        amount=entry_record.amount,
+        amount_in_dollars=entry_record.amount_in_dollars,
         currency_id=entry_record.currency_id,
+        planned_exchange_rate_to_dollars=(
+            entry_record.planned_exchange_rate_to_dollars
+        ),
+        posting_exchange_rate_to_dollars=(
+            entry_record.posting_exchange_rate_to_dollars
+        ),
         statement_closing_date=entry_record.statement_closing_date,
         statement_due_date=entry_record.statement_due_date,
     )
@@ -220,10 +226,12 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
     async def post_transaction(
         self,
         transaction_id: int,
+        entries: tuple[NewEntry, ...],
     ) -> TransactionWithEntries:
         return await self._transition_transaction_status(
             transaction_id=transaction_id,
             new_status=TransactionStatus.POSTED,
+            entries=entries,
         )
 
     async def void_transaction(
@@ -268,11 +276,10 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
         for new_entry in entries:
             entry_record = EntryRecord()
             entry_record.transaction_id = transaction_id
-            entry_record.ledger_account_id = new_entry.ledger_account_id
-            entry_record.currency_id = new_entry.currency_id
-            entry_record.amount = new_entry.amount
-            entry_record.statement_closing_date = new_entry.statement_closing_date
-            entry_record.statement_due_date = new_entry.statement_due_date
+            self._apply_entry_values(
+                entry_record=entry_record,
+                new_entry=new_entry,
+            )
             self._session.add(entry_record)
             entry_records.append(entry_record)
 
@@ -298,6 +305,43 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
             await self._session.flush()
 
         return entry_records, entry_tag_records
+
+    async def _update_entries_for_posting(
+        self,
+        *,
+        transaction_id: int,
+        entries: tuple[NewEntry, ...],
+    ) -> None:
+        existing_entry_records = cast(
+            list[EntryRecord],
+            list(
+                (
+                    await self._session.scalars(
+                        select(EntryRecord)
+                        .where(
+                            EntryRecord.transaction_id == transaction_id,
+                            EntryRecord.is_deleted.is_(False),
+                        )
+                        .order_by(EntryRecord.id.asc()),
+                    )
+                ).all(),
+            ),
+        )
+
+        if len(existing_entry_records) != len(entries):
+            raise TransactionNotFoundOutputPortError()
+
+        for entry_record, new_entry in zip(
+            existing_entry_records,
+            entries,
+            strict=True,
+        ):
+            self._apply_entry_values(
+                entry_record=entry_record,
+                new_entry=new_entry,
+            )
+
+        await self._session.flush()
 
     async def get_transaction_by_id(
         self,
@@ -380,6 +424,7 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
         *,
         transaction_id: int,
         new_status: TransactionStatus,
+        entries: tuple[NewEntry, ...] | None = None,
     ) -> TransactionWithEntries:
         transaction_record = await self._get_transaction_record_by_id(
             transaction_id=transaction_id,
@@ -397,6 +442,15 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
 
         transaction_record.status = new_status
         await self._session.flush()
+
+        if new_status == TransactionStatus.POSTED:
+            if entries is None:
+                raise TransactionNotFoundOutputPortError()
+
+            await self._update_entries_for_posting(
+                transaction_id=transaction_id,
+                entries=entries,
+            )
 
         transitioned_transaction = await self.get_transaction_by_id(transaction_id)
 
@@ -416,3 +470,29 @@ class SQLAlchemyTransactionRepository(TransactionOutputPort):
         transaction_record.effective_at = effective_at
         transaction_record.title = title
         transaction_record.description = description
+
+    @staticmethod
+    def _apply_entry_values(
+        *,
+        entry_record: EntryRecord,
+        new_entry: NewEntry,
+    ) -> None:
+        if new_entry.amount_in_dollars is None:
+            raise ValueError("entry.amount_in_dollars is required")
+
+        if new_entry.planned_exchange_rate_to_dollars is None:
+            raise ValueError(
+                "entry.planned_exchange_rate_to_dollars is required",
+            )
+
+        entry_record.ledger_account_id = new_entry.ledger_account_id
+        entry_record.currency_id = new_entry.currency_id
+        entry_record.amount_in_dollars = new_entry.amount_in_dollars
+        entry_record.planned_exchange_rate_to_dollars = (
+            new_entry.planned_exchange_rate_to_dollars
+        )
+        entry_record.posting_exchange_rate_to_dollars = (
+            new_entry.posting_exchange_rate_to_dollars
+        )
+        entry_record.statement_closing_date = new_entry.statement_closing_date
+        entry_record.statement_due_date = new_entry.statement_due_date

@@ -73,6 +73,21 @@ def build_timestamp(
     )
 
 
+def _get_rate_to_dollars(currency_id: int) -> Decimal:
+    rates_by_currency_id = {
+        1: Decimal("0.20"),
+        2: Decimal("1"),
+        3: Decimal("1.10"),
+    }
+
+    try:
+        return rates_by_currency_id[currency_id]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported currency id for test stub: {currency_id}",
+        ) from exc
+
+
 def build_transaction_with_entries(
     *,
     transaction_id: int = 1,
@@ -81,8 +96,8 @@ def build_transaction_with_entries(
     status: TransactionStatus = TransactionStatus.PENDING,
     effective_at: datetime | None = None,
     transaction_updated_at: datetime | None = None,
-    entry_one_amount: Decimal = Decimal("1200.00"),
-    entry_two_amount: Decimal = Decimal("-1200.00"),
+    entry_one_amount_in_dollars: Decimal = Decimal("240.00"),
+    entry_two_amount_in_dollars: Decimal = Decimal("-240.00"),
     first_entry_tag_ids: tuple[int, ...] = (10, 11),
     entry_updated_at: datetime | None = None,
 ) -> TransactionWithEntries:
@@ -108,8 +123,12 @@ def build_transaction_with_entries(
                     updated_at=entry_updated_at,
                     transaction_id=transaction_id,
                     ledger_account_id=1,
-                    amount=entry_one_amount,
+                    amount_in_dollars=entry_one_amount_in_dollars,
                     currency_id=1,
+                    planned_exchange_rate_to_dollars=Decimal("0.20"),
+                    posting_exchange_rate_to_dollars=(
+                        Decimal("0.20") if status == TransactionStatus.POSTED else None
+                    ),
                     statement_closing_date=None,
                     statement_due_date=None,
                 ),
@@ -125,8 +144,12 @@ def build_transaction_with_entries(
                     updated_at=entry_updated_at,
                     transaction_id=transaction_id,
                     ledger_account_id=2,
-                    amount=entry_two_amount,
+                    amount_in_dollars=entry_two_amount_in_dollars,
                     currency_id=1,
+                    planned_exchange_rate_to_dollars=Decimal("0.20"),
+                    posting_exchange_rate_to_dollars=(
+                        Decimal("0.20") if status == TransactionStatus.POSTED else None
+                    ),
                     statement_closing_date=date(2026, 5, 31),
                     statement_due_date=date(2026, 6, 10),
                 ),
@@ -522,10 +545,33 @@ class TransactionInputPortStub(TransactionInputPort):
         *,
         transaction_id: int,
         entry: NewEntry,
+        status: TransactionStatus,
         entry_id: int,
         created_at: datetime,
         updated_at: datetime,
     ) -> EntryWithTags:
+        planned_exchange_rate_to_dollars = (
+            entry.planned_exchange_rate_to_dollars
+            if entry.planned_exchange_rate_to_dollars is not None
+            else _get_rate_to_dollars(entry.currency_id)
+        )
+        amount_in_dollars = entry.amount_in_dollars
+
+        if amount_in_dollars is None:
+            amount_in_dollars = (
+                entry.amount * planned_exchange_rate_to_dollars
+            ).quantize(
+                Decimal("0.01"),
+            )
+
+        posting_exchange_rate_to_dollars = entry.posting_exchange_rate_to_dollars
+
+        if (
+            posting_exchange_rate_to_dollars is None
+            and status == TransactionStatus.POSTED
+        ):
+            posting_exchange_rate_to_dollars = planned_exchange_rate_to_dollars
+
         return EntryWithTags(
             entry=Entry(
                 id=entry_id,
@@ -533,8 +579,10 @@ class TransactionInputPortStub(TransactionInputPort):
                 updated_at=updated_at,
                 transaction_id=transaction_id,
                 ledger_account_id=entry.ledger_account_id,
-                amount=entry.amount,
+                amount_in_dollars=amount_in_dollars,
                 currency_id=entry.currency_id,
+                planned_exchange_rate_to_dollars=planned_exchange_rate_to_dollars,
+                posting_exchange_rate_to_dollars=posting_exchange_rate_to_dollars,
                 statement_closing_date=entry.statement_closing_date,
                 statement_due_date=entry.statement_due_date,
             ),
@@ -573,6 +621,7 @@ class TransactionInputPortStub(TransactionInputPort):
                 self._build_entry_with_tags(
                     transaction_id=transaction_id,
                     entry=entry,
+                    status=status,
                     entry_id=entry_id,
                     created_at=entry_created_at,
                     updated_at=updated_at,
@@ -680,7 +729,31 @@ class TransactionInputPortStub(TransactionInputPort):
                 description=current.transaction.description,
                 status=TransactionStatus.POSTED,
             ),
-            entries=current.entries,
+            entries=tuple(
+                EntryWithTags(
+                    entry=Entry(
+                        id=entry_with_tags.entry.id,
+                        created_at=entry_with_tags.entry.created_at,
+                        updated_at=build_timestamp(2),
+                        transaction_id=entry_with_tags.entry.transaction_id,
+                        ledger_account_id=entry_with_tags.entry.ledger_account_id,
+                        amount_in_dollars=entry_with_tags.entry.amount_in_dollars,
+                        currency_id=entry_with_tags.entry.currency_id,
+                        planned_exchange_rate_to_dollars=(
+                            entry_with_tags.entry.planned_exchange_rate_to_dollars
+                        ),
+                        posting_exchange_rate_to_dollars=(
+                            entry_with_tags.entry.planned_exchange_rate_to_dollars
+                        ),
+                        statement_closing_date=(
+                            entry_with_tags.entry.statement_closing_date
+                        ),
+                        statement_due_date=entry_with_tags.entry.statement_due_date,
+                    ),
+                    entry_tags=entry_with_tags.entry_tags,
+                )
+                for entry_with_tags in current.entries
+            ),
         )
         self.transactions_by_id[transaction_id] = posted
         self.post_calls.append(transaction_id)

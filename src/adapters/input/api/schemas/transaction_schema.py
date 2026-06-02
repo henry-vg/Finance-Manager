@@ -52,8 +52,10 @@ class TransactionEntryResponse(ApiSchemaBase):
     updated_at: datetime
     transaction_id: int
     ledger_account_id: int
-    amount: Decimal
+    amount_in_dollars: Decimal
     currency_id: int
+    planned_exchange_rate_to_dollars: Decimal
+    posting_exchange_rate_to_dollars: Decimal | None
     statement_closing_date: date | None
     statement_due_date: date | None
 

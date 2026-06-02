@@ -24,12 +24,22 @@ def test_entry_record_table_matches_expected_shape() -> None:
         "transaction_id",
         "ledger_account_id",
         "currency_id",
-        "amount",
+        "amount_in_dollars",
+        "planned_exchange_rate_to_dollars",
+        "posting_exchange_rate_to_dollars",
         "statement_closing_date",
         "statement_due_date",
     }
     assert list(entries_table.primary_key.columns.keys()) == ["id"]
-    assert isinstance(entries_table.c.amount.type, Numeric)
+    assert isinstance(entries_table.c.amount_in_dollars.type, Numeric)
+    assert isinstance(
+        entries_table.c.planned_exchange_rate_to_dollars.type,
+        Numeric,
+    )
+    assert isinstance(
+        entries_table.c.posting_exchange_rate_to_dollars.type,
+        Numeric,
+    )
     assert transaction_fk.target_fullname == "transactions.id"
     assert transaction_fk.ondelete == "CASCADE"
     assert ledger_account_fk.target_fullname == "ledger_accounts.id"

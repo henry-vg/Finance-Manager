@@ -99,7 +99,9 @@ entries_table = sa.table(
     sa.column("transaction_id", sa.Integer()),
     sa.column("ledger_account_id", sa.Integer()),
     sa.column("currency_id", sa.Integer()),
-    sa.column("amount", sa.Numeric()),
+    sa.column("amount_in_dollars", sa.Numeric()),
+    sa.column("planned_exchange_rate_to_dollars", sa.Numeric()),
+    sa.column("posting_exchange_rate_to_dollars", sa.Numeric()),
     sa.column("statement_closing_date", sa.Date()),
     sa.column("statement_due_date", sa.Date()),
 )
@@ -469,6 +471,19 @@ def _build_transactions() -> list[dict[str, object]]:
     ]
 
 
+def _get_rate_to_dollars(currency_id: int) -> Decimal:
+    rates_by_currency_id = {
+        1: Decimal("0.20"),
+        2: Decimal("1"),
+        3: Decimal("1.10"),
+    }
+
+    try:
+        return rates_by_currency_id[currency_id]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported seeded currency id: {currency_id}") from exc
+
+
 def _build_entries() -> list[dict[str, object]]:
     entry_rows: list[dict[str, object]] = []
 
@@ -477,14 +492,21 @@ def _build_entries() -> list[dict[str, object]]:
         positive_entry_id = ENTRY_ID_START + (offset * 2)
         negative_entry_id = positive_entry_id + 1
         amount = cast(Decimal, transaction_spec["amount"])
+        currency_id = cast(int, transaction_spec["currency_id"])
+        rate_to_dollars = _get_rate_to_dollars(currency_id)
+        posting_rate_to_dollars = (
+            rate_to_dollars if transaction_spec["status"] == "POSTED" else None
+        )
 
         entry_rows.append(
             {
                 "id": positive_entry_id,
                 "transaction_id": transaction_id,
                 "ledger_account_id": transaction_spec["positive_account_id"],
-                "currency_id": transaction_spec["currency_id"],
-                "amount": amount,
+                "currency_id": currency_id,
+                "amount_in_dollars": amount * rate_to_dollars,
+                "planned_exchange_rate_to_dollars": rate_to_dollars,
+                "posting_exchange_rate_to_dollars": posting_rate_to_dollars,
                 "statement_closing_date": None,
                 "statement_due_date": None,
             },
@@ -494,8 +516,10 @@ def _build_entries() -> list[dict[str, object]]:
                 "id": negative_entry_id,
                 "transaction_id": transaction_id,
                 "ledger_account_id": transaction_spec["negative_account_id"],
-                "currency_id": transaction_spec["currency_id"],
-                "amount": -amount,
+                "currency_id": currency_id,
+                "amount_in_dollars": -amount * rate_to_dollars,
+                "planned_exchange_rate_to_dollars": rate_to_dollars,
+                "posting_exchange_rate_to_dollars": posting_rate_to_dollars,
                 "statement_closing_date": transaction_spec["statement_closing_date"],
                 "statement_due_date": transaction_spec["statement_due_date"],
             },

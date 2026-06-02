@@ -148,6 +148,7 @@ async def test_create_transaction_returns_created_response_and_forwards_payload(
             NewEntry(
                 ledger_account_id=1,
                 amount=Decimal("1200.00"),
+                amount_in_dollars=None,
                 currency_id=1,
                 statement_closing_date=None,
                 statement_due_date=None,
@@ -156,6 +157,7 @@ async def test_create_transaction_returns_created_response_and_forwards_payload(
             NewEntry(
                 ledger_account_id=2,
                 amount=Decimal("-1200.00"),
+                amount_in_dollars=None,
                 currency_id=1,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 6, 10),
@@ -209,6 +211,7 @@ async def test_update_transaction_returns_updated_response() -> None:
             NewEntry(
                 ledger_account_id=1,
                 amount=Decimal("1300.00"),
+                amount_in_dollars=None,
                 currency_id=1,
                 statement_closing_date=None,
                 statement_due_date=None,
@@ -217,6 +220,7 @@ async def test_update_transaction_returns_updated_response() -> None:
             NewEntry(
                 ledger_account_id=2,
                 amount=Decimal("-1300.00"),
+                amount_in_dollars=None,
                 currency_id=1,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 6, 10),

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.core.domain.currency import Currency
+from src.core.domain.currency import Currency, ExchangeRateQuote
 from src.core.domain.ledger_account import (
     LedgerAccount,
     LedgerAccountInstrumentKind,
@@ -37,6 +37,7 @@ from src.core.domain.transaction import (
     UpdateTransactionData,
 )
 from src.core.ports.output.currency_output_port import CurrencyOutputPort
+from src.core.ports.output.exchange_rate_output_port import ExchangeRateOutputPort
 from src.core.ports.output.ledger_account_output_port import LedgerAccountOutputPort
 from src.core.ports.output.tag_output_port import TagOutputPort
 from src.core.ports.output.transaction_output_port import (
@@ -88,6 +89,7 @@ def _build_transaction_data(
             NewEntry(
                 ledger_account_id=expense_ledger_account_id,
                 amount=Decimal("1200.00"),
+                amount_in_dollars=Decimal("240.00"),
                 currency_id=expense_currency_id,
                 statement_closing_date=None,
                 statement_due_date=None,
@@ -99,6 +101,7 @@ def _build_transaction_data(
             NewEntry(
                 ledger_account_id=credit_card_ledger_account_id,
                 amount=Decimal("-1200.00"),
+                amount_in_dollars=Decimal("-240.00"),
                 currency_id=credit_card_currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 6, 10),
@@ -148,7 +151,37 @@ def _build_transaction_with_entries(
     *,
     transaction_id: int = 1,
     status: TransactionStatus = TransactionStatus.PENDING,
+    entries: tuple[NewEntry, ...] | None = None,
 ) -> TransactionWithEntries:
+    if entries is None:
+        entries = (
+            NewEntry(
+                ledger_account_id=1,
+                amount=Decimal("1200.00"),
+                amount_in_dollars=Decimal("240.00"),
+                currency_id=1,
+                statement_closing_date=None,
+                statement_due_date=None,
+                entry_tags=(NewEntryTag(tag_id=10),),
+                planned_exchange_rate_to_dollars=Decimal("0.20"),
+                posting_exchange_rate_to_dollars=(
+                    Decimal("0.20") if status == TransactionStatus.POSTED else None
+                ),
+            ),
+            NewEntry(
+                ledger_account_id=2,
+                amount=Decimal("-1200.00"),
+                amount_in_dollars=Decimal("-240.00"),
+                currency_id=1,
+                statement_closing_date=date(2026, 5, 31),
+                statement_due_date=date(2026, 6, 10),
+                planned_exchange_rate_to_dollars=Decimal("0.20"),
+                posting_exchange_rate_to_dollars=(
+                    Decimal("0.20") if status == TransactionStatus.POSTED else None
+                ),
+            ),
+        )
+
     return TransactionWithEntries(
         transaction=Transaction(
             id=transaction_id,
@@ -159,35 +192,31 @@ def _build_transaction_with_entries(
             description="Family vacation purchase",
             status=status,
         ),
-        entries=(
+        entries=tuple(
             EntryWithTags(
                 entry=Entry(
-                    id=100,
+                    id=100 + index,
                     created_at=_build_timestamp(1),
                     updated_at=_build_timestamp(1),
                     transaction_id=transaction_id,
-                    ledger_account_id=1,
-                    amount=Decimal("1200.00"),
-                    currency_id=1,
-                    statement_closing_date=None,
-                    statement_due_date=None,
+                    ledger_account_id=entry.ledger_account_id,
+                    amount_in_dollars=entry.amount_in_dollars,
+                    currency_id=entry.currency_id,
+                    planned_exchange_rate_to_dollars=(
+                        entry.planned_exchange_rate_to_dollars
+                        if entry.planned_exchange_rate_to_dollars is not None
+                        else Decimal("1")
+                    ),
+                    posting_exchange_rate_to_dollars=entry.posting_exchange_rate_to_dollars,
+                    statement_closing_date=entry.statement_closing_date,
+                    statement_due_date=entry.statement_due_date,
                 ),
-                entry_tags=(EntryTag(entry_id=100, tag_id=10),),
-            ),
-            EntryWithTags(
-                entry=Entry(
-                    id=101,
-                    created_at=_build_timestamp(1),
-                    updated_at=_build_timestamp(1),
-                    transaction_id=transaction_id,
-                    ledger_account_id=2,
-                    amount=Decimal("-1200.00"),
-                    currency_id=1,
-                    statement_closing_date=date(2026, 5, 31),
-                    statement_due_date=date(2026, 6, 10),
+                entry_tags=tuple(
+                    EntryTag(entry_id=100 + index, tag_id=entry_tag.tag_id)
+                    for entry_tag in entry.entry_tags
                 ),
-                entry_tags=(),
-            ),
+            )
+            for index, entry in enumerate(entries)
         ),
     )
 
@@ -235,6 +264,7 @@ class _TransactionOutputPortStub(TransactionOutputPort):
         created_transaction = _build_transaction_with_entries(
             transaction_id=self.next_id,
             status=new_transaction.status,
+            entries=new_transaction.entries,
         )
         self.transactions[self.next_id] = created_transaction
         self.next_id += 1
@@ -256,6 +286,7 @@ class _TransactionOutputPortStub(TransactionOutputPort):
         updated_transaction = _build_transaction_with_entries(
             transaction_id=transaction_id,
             status=current_transaction.transaction.status,
+            entries=changes.entries,
         )
         self.updated_transactions.append((transaction_id, changes))
         self.transactions[transaction_id] = updated_transaction
@@ -264,6 +295,7 @@ class _TransactionOutputPortStub(TransactionOutputPort):
     async def post_transaction(
         self,
         transaction_id: int,
+        entries: tuple[NewEntry, ...],
     ) -> TransactionWithEntries:
         if self.post_error is not None:
             raise self.post_error
@@ -274,6 +306,7 @@ class _TransactionOutputPortStub(TransactionOutputPort):
         transitioned_transaction = _build_transaction_with_entries(
             transaction_id=transaction_id,
             status=TransactionStatus.POSTED,
+            entries=entries,
         )
         self.posted_transactions.append(transaction_id)
         self.transactions[transaction_id] = transitioned_transaction
@@ -345,6 +378,49 @@ class _CurrencyOutputPortStub(CurrencyOutputPort):
         raise RuntimeError("hard_delete_currency is unused in transaction tests")
 
 
+class _ExchangeRateOutputPortStub(ExchangeRateOutputPort):
+    def __init__(
+        self,
+        rates_by_iso_code: dict[str, Decimal | list[Decimal]] | None = None,
+    ) -> None:
+        self._rates_by_iso_code = rates_by_iso_code or {
+            "BRL": Decimal("0.20"),
+            "USD": Decimal("1"),
+        }
+        self.queries: list[str] = []
+
+    def _next_rate(self, currency_iso_code: str) -> Decimal:
+        configured_rate = self._rates_by_iso_code.get(currency_iso_code)
+
+        if configured_rate is None:
+            raise NotImplementedError()
+
+        if isinstance(configured_rate, list):
+            if not configured_rate:
+                raise NotImplementedError()
+
+            return configured_rate.pop(0)
+
+        return configured_rate
+
+    async def get_exchange_rate_to_dollars(
+        self,
+        currency_iso_code: str,
+        quote_date: date | None = None,
+    ) -> ExchangeRateQuote:
+        del quote_date
+
+        normalized_currency_iso_code = currency_iso_code.upper()
+        self.queries.append(normalized_currency_iso_code)
+        rate_to_dollars = self._next_rate(normalized_currency_iso_code)
+
+        return ExchangeRateQuote(
+            currency_iso_code=normalized_currency_iso_code,
+            rate_to_dollars=rate_to_dollars,
+            quoted_at=_build_timestamp(1),
+        )
+
+
 class _LedgerAccountOutputPortStub(LedgerAccountOutputPort):
     def __init__(self) -> None:
         self.ledger_accounts: dict[int, LedgerAccount] = {}
@@ -411,11 +487,13 @@ class _UnitOfWorkStub(UnitOfWorkOutputPort):
         ledger_accounts: _LedgerAccountOutputPortStub,
         tags: _TagOutputPortStub,
         currencies: _CurrencyOutputPortStub | None = None,
+        exchange_rates: _ExchangeRateOutputPortStub | None = None,
     ) -> None:
         self._transactions = transactions
         self._ledger_accounts = ledger_accounts
         self._tags = tags
         self._currencies = currencies or _CurrencyOutputPortStub()
+        self.exchange_rates = exchange_rates or _ExchangeRateOutputPortStub()
         self.committed = False
 
     @property
@@ -489,13 +567,18 @@ def _build_use_case() -> tuple[
     tags = _TagOutputPortStub()
     tags.tags[10] = _build_tag(tag_id=10)
     tags.tags[11] = _build_tag(tag_id=11)
+    exchange_rates = _ExchangeRateOutputPortStub()
     unit_of_work = _UnitOfWorkStub(
         transactions=transactions,
         ledger_accounts=ledger_accounts,
         tags=tags,
+        exchange_rates=exchange_rates,
     )
     return (
-        TransactionUseCase(_UnitOfWorkFactoryStub(unit_of_work)),
+        TransactionUseCase(
+            _UnitOfWorkFactoryStub(unit_of_work),
+            exchange_rates,
+        ),
         transactions,
         ledger_accounts,
         tags,
@@ -564,13 +647,29 @@ async def test_create_transaction_allows_voided_historical_transaction() -> None
 @pytest.mark.anyio
 async def test_create_transaction_queries_entry_currencies_by_id() -> None:
     use_case, transactions, _, _, unit_of_work = _build_use_case()
-
-    await use_case.create_transaction(
-        _build_transaction_data(
-            expense_currency_id=1,
-            credit_card_currency_id=2,
+    data = _build_transaction_data(
+        expense_currency_id=1,
+        credit_card_currency_id=2,
+    )
+    balanced_multi_currency_data = CreateTransactionData(
+        effective_at=data.effective_at,
+        title=data.title,
+        description=data.description,
+        status=data.status,
+        entries=(
+            data.entries[0],
+            NewEntry(
+                ledger_account_id=data.entries[1].ledger_account_id,
+                amount=Decimal("-240.00"),
+                amount_in_dollars=Decimal("-240.00"),
+                currency_id=data.entries[1].currency_id,
+                statement_closing_date=data.entries[1].statement_closing_date,
+                statement_due_date=data.entries[1].statement_due_date,
+            ),
         ),
     )
+
+    await use_case.create_transaction(balanced_multi_currency_data)
 
     assert transactions.created_transactions[0].entries[0].currency_id == 1
     assert set(unit_of_work.currencies.queried_currency_ids) == {1, 2}
@@ -607,7 +706,8 @@ async def test_create_transaction_requires_balanced_entries() -> None:
             data.entries[0],
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
-                amount=Decimal("-1199.99"),
+                amount=Decimal("-1199.94"),
+                amount_in_dollars=None,
                 currency_id=data.entries[1].currency_id,
                 statement_closing_date=data.entries[1].statement_closing_date,
                 statement_due_date=data.entries[1].statement_due_date,
@@ -662,6 +762,7 @@ async def test_create_transaction_rejects_duplicate_tags_in_the_same_entry() -> 
             NewEntry(
                 ledger_account_id=data.entries[0].ledger_account_id,
                 amount=data.entries[0].amount,
+                amount_in_dollars=data.entries[0].amount_in_dollars,
                 currency_id=data.entries[0].currency_id,
                 statement_closing_date=data.entries[0].statement_closing_date,
                 statement_due_date=data.entries[0].statement_due_date,
@@ -692,6 +793,7 @@ async def test_create_transaction_requires_statement_dates_together() -> None:
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=data.entries[1].amount,
+                amount_in_dollars=data.entries[1].amount_in_dollars,
                 currency_id=data.entries[1].currency_id,
                 statement_closing_date=data.entries[1].statement_closing_date,
                 statement_due_date=None,
@@ -726,6 +828,7 @@ async def test_create_transaction_requires_due_date_after_closing_date() -> None
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=data.entries[1].amount,
+                amount_in_dollars=data.entries[1].amount_in_dollars,
                 currency_id=data.entries[1].currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 5, 31),
@@ -796,7 +899,8 @@ async def test_update_transaction_requires_balanced_entries() -> None:
             data.entries[0],
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
-                amount=Decimal("-1199.99"),
+                amount=Decimal("-1199.94"),
+                amount_in_dollars=None,
                 currency_id=data.entries[1].currency_id,
                 statement_closing_date=data.entries[1].statement_closing_date,
                 statement_due_date=data.entries[1].statement_due_date,
@@ -823,6 +927,7 @@ async def test_update_transaction_rejects_duplicate_tags_in_the_same_entry() -> 
             NewEntry(
                 ledger_account_id=data.entries[0].ledger_account_id,
                 amount=data.entries[0].amount,
+                amount_in_dollars=data.entries[0].amount_in_dollars,
                 currency_id=data.entries[0].currency_id,
                 statement_closing_date=data.entries[0].statement_closing_date,
                 statement_due_date=data.entries[0].statement_due_date,
@@ -853,6 +958,7 @@ async def test_update_transaction_requires_statement_dates_together() -> None:
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=data.entries[1].amount,
+                amount_in_dollars=data.entries[1].amount_in_dollars,
                 currency_id=data.entries[1].currency_id,
                 statement_closing_date=data.entries[1].statement_closing_date,
                 statement_due_date=None,
@@ -888,6 +994,7 @@ async def test_update_transaction_requires_due_date_after_closing_date() -> None
             NewEntry(
                 ledger_account_id=data.entries[1].ledger_account_id,
                 amount=data.entries[1].amount,
+                amount_in_dollars=data.entries[1].amount_in_dollars,
                 currency_id=data.entries[1].currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 5, 31),

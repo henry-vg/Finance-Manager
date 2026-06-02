@@ -140,7 +140,7 @@ async def test_post_transaction_raises_not_found_when_record_is_missing() -> Non
     repository = SQLAlchemyTransactionRepository(cast(Any, _FakeSession()))
 
     with pytest.raises(TransactionNotFoundOutputPortError):
-        await repository.post_transaction(1)
+        await repository.post_transaction(1, ())
 
 
 @pytest.mark.anyio
@@ -157,9 +157,9 @@ async def test_post_transaction_raises_not_found_when_reload_returns_none(
     monkeypatch.setattr(repository, "get_transaction_by_id", _missing_transaction)
 
     with pytest.raises(TransactionNotFoundOutputPortError):
-        await repository.post_transaction(1)
+        await repository.post_transaction(1, ())
 
-    assert session.flush_calls == 1
+    assert session.flush_calls == 2
 
 
 @pytest.mark.anyio

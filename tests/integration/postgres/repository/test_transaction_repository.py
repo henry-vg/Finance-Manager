@@ -150,6 +150,13 @@ async def test_create_transaction_persists_transaction_entries_and_entry_tags(
     assert created_transaction.transaction.id > 0
     assert transaction_record is not None
     assert len(created_transaction.entries) == 2
+    assert created_transaction.entries[0].entry.amount_in_dollars == Decimal("240.00")
+    assert created_transaction.entries[
+        0
+    ].entry.planned_exchange_rate_to_dollars == Decimal(
+        "0.20",
+    )
+    assert created_transaction.entries[0].entry.posting_exchange_rate_to_dollars is None
     assert [
         entry_tag.tag_id for entry_tag in created_transaction.entries[0].entry_tags
     ] == [food_tag_id, travel_tag_id]
@@ -188,10 +195,20 @@ async def test_create_transaction_persists_transaction_entries_and_entry_tags(
         )
 
     assert len(persisted_entry_records) == 2
-    assert {entry_record.amount for entry_record in persisted_entry_records} == {
-        Decimal("1200.00"),
-        Decimal("-1200.00"),
+    assert {
+        entry_record.amount_in_dollars for entry_record in persisted_entry_records
+    } == {
+        Decimal("240.00"),
+        Decimal("-240.00"),
     }
+    assert {
+        entry_record.planned_exchange_rate_to_dollars
+        for entry_record in persisted_entry_records
+    } == {Decimal("0.20")}
+    assert {
+        entry_record.posting_exchange_rate_to_dollars
+        for entry_record in persisted_entry_records
+    } == {None}
     assert {
         entry_tag_record.tag_id for entry_tag_record in persisted_entry_tag_records
     } == {
@@ -232,6 +249,17 @@ async def test_create_transaction_persists_explicit_posted_status(
     assert created_transaction.transaction.status == TransactionStatus.POSTED
     assert transaction_record is not None
     assert transaction_record.status == TransactionStatus.POSTED
+    assert {
+        entry_with_tags.entry.amount_in_dollars
+        for entry_with_tags in created_transaction.entries
+    } == {
+        Decimal("240.00"),
+        Decimal("-240.00"),
+    }
+    assert {
+        entry_with_tags.entry.posting_exchange_rate_to_dollars
+        for entry_with_tags in created_transaction.entries
+    } == {Decimal("0.20")}
 
 
 @pytest.mark.anyio
@@ -354,10 +382,11 @@ async def test_get_transaction_by_id_hydrates_private_transaction_graph(
     assert loaded_transaction.transaction.title == "Airline tickets"
     assert loaded_transaction.transaction.status == TransactionStatus.PENDING
     assert [
-        entry_with_tags.entry.amount for entry_with_tags in loaded_transaction.entries
+        entry_with_tags.entry.amount_in_dollars
+        for entry_with_tags in loaded_transaction.entries
     ] == [
-        Decimal("1200.00"),
-        Decimal("-1200.00"),
+        Decimal("240.00"),
+        Decimal("-240.00"),
     ]
     assert [
         entry_tag.tag_id for entry_tag in loaded_transaction.entries[0].entry_tags
@@ -411,10 +440,11 @@ async def test_update_transaction_replaces_entries_and_entry_tags(
     assert updated_transaction.transaction.status == TransactionStatus.PENDING
     assert updated_transaction.transaction.title == "Hotel reservation"
     assert [
-        entry_with_tags.entry.amount for entry_with_tags in updated_transaction.entries
+        entry_with_tags.entry.amount_in_dollars
+        for entry_with_tags in updated_transaction.entries
     ] == [
-        Decimal("900.00"),
-        Decimal("-900.00"),
+        Decimal("180.00"),
+        Decimal("-180.00"),
     ]
     assert [
         entry_tag.tag_id for entry_tag in updated_transaction.entries[0].entry_tags
@@ -446,9 +476,11 @@ async def test_update_transaction_replaces_entries_and_entry_tags(
         )
 
     assert len(persisted_entry_records) == 2
-    assert {entry_record.amount for entry_record in persisted_entry_records} == {
-        Decimal("900.00"),
-        Decimal("-900.00"),
+    assert {
+        entry_record.amount_in_dollars for entry_record in persisted_entry_records
+    } == {
+        Decimal("180.00"),
+        Decimal("-180.00"),
     }
     assert {
         entry_tag_record.tag_id for entry_tag_record in persisted_entry_tag_records
@@ -537,9 +569,17 @@ async def test_post_transaction_updates_status_without_replacing_entries(
             entry_record.id for entry_record in original_entry_records
         ]
         repository = SQLAlchemyTransactionRepository(session)
+        posted_entries = build_new_transaction(
+            expense_ledger_account_id=expense_ledger_account_id,
+            credit_card_ledger_account_id=credit_card_ledger_account_id,
+            food_tag_id=groceries_tag_id,
+            travel_tag_id=travel_tag_id,
+            status=TransactionStatus.POSTED,
+        ).entries
 
         transitioned_transaction = await repository.post_transaction(
             created_transaction.transaction.id,
+            posted_entries,
         )
         await session.commit()
 
@@ -566,6 +606,10 @@ async def test_post_transaction_updates_status_without_replacing_entries(
     assert [
         entry_record.id for entry_record in transitioned_entry_records
     ] == original_entry_ids
+    assert {
+        entry_record.posting_exchange_rate_to_dollars
+        for entry_record in transitioned_entry_records
+    } == {Decimal("0.20")}
 
 
 @pytest.mark.anyio

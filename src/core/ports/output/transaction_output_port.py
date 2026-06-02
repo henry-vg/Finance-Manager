@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from src.core.domain.transaction import (
+    NewEntry,
     NewTransaction,
     Transaction,
     TransactionChanges,
@@ -38,6 +39,7 @@ class TransactionOutputPort(Protocol):  # pragma: no cover
     async def post_transaction(
         self,
         transaction_id: int,
+        entries: tuple[NewEntry, ...],
     ) -> TransactionWithEntries: ...
 
     async def void_transaction(

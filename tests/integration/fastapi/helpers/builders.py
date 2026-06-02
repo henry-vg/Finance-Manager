@@ -1,4 +1,5 @@
-from typing import Any
+from decimal import Decimal
+from typing import Any, cast
 
 
 def build_page_response(
@@ -160,17 +161,31 @@ def build_transaction_entry_tag_response(**overrides: Any) -> dict[str, Any]:
 
 
 def build_transaction_entry_response(**overrides: Any) -> dict[str, Any]:
-    return {
+    response = {
         "id": 100,
         "created_at": "2026-05-01T00:00:00.000Z",
         "updated_at": "2026-05-01T00:00:00.000Z",
         "transaction_id": 1,
         "ledger_account_id": 1,
-        "amount": "1200.00",
+        "amount_in_dollars": "240.00",
         "currency_id": 1,
+        "posting_exchange_rate_to_dollars": None,
         "statement_closing_date": None,
         "statement_due_date": None,
     } | overrides
+
+    rates_by_currency_id = {
+        1: Decimal("0.20"),
+        2: Decimal("1"),
+        3: Decimal("1.10"),
+    }
+    currency_id = cast(int, response["currency_id"])
+    rate_to_dollars = rates_by_currency_id[currency_id]
+
+    if "planned_exchange_rate_to_dollars" not in overrides:
+        response["planned_exchange_rate_to_dollars"] = str(rate_to_dollars)
+
+    return response
 
 
 def build_transaction_entry_with_tags_response(
@@ -247,7 +262,7 @@ def build_transaction_response(**overrides: Any) -> dict[str, Any]:
                 entry=build_transaction_entry_response(
                     id=101,
                     ledger_account_id=2,
-                    amount="-1200.00",
+                    amount_in_dollars="-240.00",
                     statement_closing_date="2026-05-31",
                     statement_due_date="2026-06-10",
                 ),
@@ -279,7 +294,7 @@ def build_updated_transaction_response(**overrides: Any) -> dict[str, Any]:
             build_transaction_entry_with_tags_response(
                 entry=build_transaction_entry_response(
                     updated_at="2026-05-02T00:00:00.000Z",
-                    amount="1300.00",
+                    amount_in_dollars="260.00",
                 ),
                 entry_tags=[build_transaction_entry_tag_response(tag_id=11)],
             ),
@@ -288,7 +303,7 @@ def build_updated_transaction_response(**overrides: Any) -> dict[str, Any]:
                     id=101,
                     updated_at="2026-05-02T00:00:00.000Z",
                     ledger_account_id=2,
-                    amount="-1300.00",
+                    amount_in_dollars="-260.00",
                     statement_closing_date="2026-05-31",
                     statement_due_date="2026-06-10",
                 ),
@@ -303,6 +318,26 @@ def build_posted_transaction_response(**overrides: Any) -> dict[str, Any]:
     return build_transaction_response(
         updated_at="2026-05-02T00:00:00.000Z",
         status="posted",
+        entries=[
+            build_transaction_entry_with_tags_response(
+                entry=build_transaction_entry_response(
+                    updated_at="2026-05-02T00:00:00.000Z",
+                    posting_exchange_rate_to_dollars="0.20",
+                ),
+            ),
+            build_transaction_entry_with_tags_response(
+                entry=build_transaction_entry_response(
+                    id=101,
+                    updated_at="2026-05-02T00:00:00.000Z",
+                    ledger_account_id=2,
+                    amount_in_dollars="-240.00",
+                    posting_exchange_rate_to_dollars="0.20",
+                    statement_closing_date="2026-05-31",
+                    statement_due_date="2026-06-10",
+                ),
+                entry_tags=[],
+            ),
+        ],
         **overrides,
     )
 

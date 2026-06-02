@@ -57,10 +57,13 @@ class NewEntryTag:
 class NewEntry:
     ledger_account_id: int
     amount: Decimal
+    amount_in_dollars: Decimal | None
     currency_id: int
     statement_closing_date: date | None
     statement_due_date: date | None
     entry_tags: tuple[NewEntryTag, ...] = ()
+    planned_exchange_rate_to_dollars: Decimal | None = None
+    posting_exchange_rate_to_dollars: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -104,8 +107,10 @@ class Entry:
     updated_at: datetime
     transaction_id: int
     ledger_account_id: int
-    amount: Decimal
+    amount_in_dollars: Decimal
     currency_id: int
+    planned_exchange_rate_to_dollars: Decimal
+    posting_exchange_rate_to_dollars: Decimal | None
     statement_closing_date: date | None
     statement_due_date: date | None
 
@@ -153,6 +158,10 @@ class TransactionLedgerAccountNotFoundError(Exception):
 
 
 class TransactionEntryCurrencyNotFoundError(Exception):
+    pass
+
+
+class TransactionEntryExchangeRateUnavailableError(Exception):
     pass
 
 

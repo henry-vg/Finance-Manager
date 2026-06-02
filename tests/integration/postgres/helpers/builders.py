@@ -19,6 +19,47 @@ from src.core.domain.transaction import (
 from src.core.domain.user import NewUser, UserChanges
 
 
+def _get_rate_to_dollars_for_currency_id(currency_id: int) -> Decimal:
+    rates_by_currency_id = {
+        1: Decimal("0.20"),
+        2: Decimal("1"),
+        3: Decimal("1.10"),
+    }
+
+    try:
+        return rates_by_currency_id[currency_id]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported currency id for test builder: {currency_id}",
+        ) from exc
+
+
+def _build_new_entry(
+    *,
+    ledger_account_id: int,
+    amount: Decimal,
+    amount_in_dollars: Decimal,
+    currency_id: int,
+    statement_closing_date: date | None,
+    statement_due_date: date | None,
+    entry_tags: tuple[NewEntryTag, ...] = (),
+    is_posted: bool = False,
+) -> NewEntry:
+    rate_to_dollars = _get_rate_to_dollars_for_currency_id(currency_id)
+
+    return NewEntry(
+        ledger_account_id=ledger_account_id,
+        amount=amount,
+        amount_in_dollars=amount_in_dollars,
+        currency_id=currency_id,
+        statement_closing_date=statement_closing_date,
+        statement_due_date=statement_due_date,
+        entry_tags=entry_tags,
+        planned_exchange_rate_to_dollars=rate_to_dollars,
+        posting_exchange_rate_to_dollars=(rate_to_dollars if is_posted else None),
+    )
+
+
 def build_new_currency(
     *,
     iso_code: str = "USD",
@@ -135,15 +176,18 @@ def build_new_transaction(
     expense_currency_id: int = 1,
     credit_card_currency_id: int = 1,
 ) -> NewTransaction:
+    is_posted = status == TransactionStatus.POSTED
+
     return NewTransaction(
         effective_at=datetime(2026, 5, 11, 14, 30, tzinfo=UTC),
         title="Airline tickets",
         description="Family vacation purchase",
         status=status,
         entries=(
-            NewEntry(
+            _build_new_entry(
                 ledger_account_id=expense_ledger_account_id,
                 amount=Decimal("1200.00"),
+                amount_in_dollars=Decimal("240.00"),
                 currency_id=expense_currency_id,
                 statement_closing_date=None,
                 statement_due_date=None,
@@ -151,13 +195,16 @@ def build_new_transaction(
                     NewEntryTag(tag_id=food_tag_id),
                     NewEntryTag(tag_id=travel_tag_id),
                 ),
+                is_posted=is_posted,
             ),
-            NewEntry(
+            _build_new_entry(
                 ledger_account_id=credit_card_ledger_account_id,
                 amount=Decimal("-1200.00"),
+                amount_in_dollars=Decimal("-240.00"),
                 currency_id=credit_card_currency_id,
                 statement_closing_date=date(2026, 5, 31),
                 statement_due_date=date(2026, 6, 10),
+                is_posted=is_posted,
             ),
         ),
     )
@@ -176,17 +223,19 @@ def build_transaction_changes(
         title="Hotel reservation",
         description="Updated pending purchase",
         entries=(
-            NewEntry(
+            _build_new_entry(
                 ledger_account_id=expense_ledger_account_id,
                 amount=Decimal("900.00"),
+                amount_in_dollars=Decimal("180.00"),
                 currency_id=expense_currency_id,
                 statement_closing_date=None,
                 statement_due_date=None,
                 entry_tags=(NewEntryTag(tag_id=travel_tag_id),),
             ),
-            NewEntry(
+            _build_new_entry(
                 ledger_account_id=credit_card_ledger_account_id,
                 amount=Decimal("-900.00"),
+                amount_in_dollars=Decimal("-180.00"),
                 currency_id=credit_card_currency_id,
                 statement_closing_date=date(2026, 6, 30),
                 statement_due_date=date(2026, 7, 10),
