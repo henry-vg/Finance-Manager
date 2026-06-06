@@ -4,15 +4,6 @@ Finance Manager é a API backend de um sistema de gestão financeira pessoal con
 
 Na versão 1.0.0, o sistema cobre o núcleo do fluxo financeiro: cadastro de usuários, catálogo de moedas, contas como banco, carteira e cartão de crédito, classificação por tags, escrita e consulta de transações com múltiplas entries, transição explícita de status contábil e documentação OpenAPI pronta para uso.
 
-## O que o sistema faz
-
-- gerencia usuários com suporte a soft delete por padrão
-- cadastra e consulta moedas suportadas pelo sistema
-- cria, consulta, lista, atualiza e remove contas contábeis
-- cria, consulta, lista, atualiza e remove tags
-- cria, consulta, lista, atualiza, posta e invalida transações contábeis
-- expõe endpoints de health check e documentação Swagger/OpenAPI
-
 ## Conceitos centrais
 
 ### Ledger Account
@@ -34,18 +25,6 @@ Uma `Entry` é o efeito de uma transação sobre um saldo. No contrato de escrit
 ### Currency
 
 O sistema suporta catálogo de moedas e toda referência para moeda acontece por ID. A identidade monetária da operação fica em cada `Entry`, e não na transação como um todo.
-
-## Superfície pública da API
-
-Os principais recursos expostos hoje são:
-
-- `GET /healthz/liveness` e `GET /healthz/readiness`
-- `GET|POST|PUT|DELETE /currency` e `GET /currency/list`
-- `GET|POST|PUT|DELETE /ledger-account` e `GET /ledger-account/list`
-- `GET|POST|PUT|DELETE /tag` e `GET /tag/list`
-- `GET|POST|PUT|DELETE /user` e `GET /user/list`
-- `GET|POST|PUT /transaction`, `GET /transaction/list`, `POST /transaction/post` e `POST /transaction/void`
-- `GET /docs` para Swagger UI e `GET /openapi.json` para o contrato OpenAPI
 
 ## Arquitetura
 
@@ -82,8 +61,6 @@ Finance-Manager/
 |-- Makefile               # comandos principais de execução e validação
 |-- README.md              # apresentação pública do projeto
 ```
-
-Para contexto técnico completo de arquitetura, domínio, API, persistência, testes e operação, consulte `docs/README.md`.
 
 ## Como rodar localmente
 
@@ -130,7 +107,6 @@ make run-api
 Com a aplicação em execução:
 
 - Swagger UI: `http://localhost:8000/docs`
-- OpenAPI JSON: `http://localhost:8000/openapi.json`
 - Liveness: `http://localhost:8000/healthz/liveness`
 - Readiness: `http://localhost:8000/healthz/readiness`
 
@@ -154,11 +130,4 @@ Para lint e type checking:
 
 ```bash
 make run-quality-check
-```
-
-Se quiser validar tudo no mesmo ciclo, a sequência recomendada é:
-
-```bash
-make run-quality-check
-make run-tests-with-coverage
 ```
